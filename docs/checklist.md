@@ -76,3 +76,14 @@ Este documento apresenta o plano detalhado de implementação do **Crom Nextline
   3. Executar o binário Go wrapper que ativa o Crom Agente (CLI).
   4. Crom Agente edita os arquivos do site no disco (Workspace).
   5. Iframe recarrega mostrando a nova alteração no design (Frontend).
+
+---
+
+### Etapa 7: Painel Administrativo e Gestão de Créditos 🟢 (100% Concluído)
+- [x] Criar migrations e tabelas de banco de dados para `clients` (com saldo inicial de 500 pontos) e `settings` (armazenamento de chaves e custos).
+- [x] Criar o [AdminController.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/app/Http/Controllers/AdminController.php) e registrar rotas de consulta e salvamento.
+- [x] Implementar a validação e débito automático de pontos por uso do agente em [AgentController.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/app/Http/Controllers/AgentController.php).
+- [x] Desenvolver a página [AdminDashboard.tsx](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/frontend/src/pages/AdminDashboard.tsx) permitindo configurar chave OpenRouter, custo por uso, monitorar contêineres Docker e creditar novos pontos a clientes.
+- [x] Integrar a exibição do saldo em tempo real no cabeçalho global do frontend ([LayoutWrapper.tsx](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/frontend/src/components/LayoutWrapper.tsx)) e sincronizar via API no [App.tsx](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/frontend/src/App.tsx).
+- [x] Criar arquivo de configuração `.env` na raiz do projeto para suporte a chaves API locais.
+- [x] Documentar o acesso operacional em [docs/access-guide.md](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/access-guide.md).

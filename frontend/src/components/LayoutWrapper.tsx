@@ -1,15 +1,16 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Info, Layout, LogOut, Lock, Sparkles } from 'lucide-react'
+import { Home, Info, Layout, LogOut, Lock, Sparkles, Settings, Coins } from 'lucide-react'
 
 interface LayoutWrapperProps {
   children: React.ReactNode
   isAuthenticated: boolean
   handleLogout: () => void
   agentStatus: string
+  clientPoints: number
 }
 
-export default function LayoutWrapper({ children, isAuthenticated, handleLogout, agentStatus }: LayoutWrapperProps) {
+export default function LayoutWrapper({ children, isAuthenticated, handleLogout, agentStatus, clientPoints }: LayoutWrapperProps) {
   const location = useLocation()
   
   return (
@@ -29,32 +30,40 @@ export default function LayoutWrapper({ children, isAuthenticated, handleLogout,
 
         <div className="flex items-center gap-4">
           {isAuthenticated && (
-            <div className="text-xs flex items-center gap-2 font-mono">
-              {agentStatus === 'idle' && (
-                <span className="text-slate-400 flex items-center gap-1.5 bg-slate-800/40 px-2.5 py-0.5 rounded border border-slate-800">
-                  <span className="w-1 h-1 rounded-full bg-slate-500"></span> IDLE
-                </span>
-              )}
-              {agentStatus === 'analyzing' && (
-                <span className="text-yellow-400 flex items-center gap-1.5 bg-yellow-500/10 px-2.5 py-0.5 rounded border border-yellow-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span> ANALISANDO
-                </span>
-              )}
-              {agentStatus === 'running_go' && (
-                <span className="text-cyan-400 flex items-center gap-1.5 bg-cyan-500/10 px-2.5 py-0.5 rounded border border-cyan-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span> GO CLI RUNNING
-                </span>
-              )}
-              {agentStatus === 'writing_files' && (
-                <span className="text-purple-400 flex items-center gap-1.5 bg-purple-500/10 px-2.5 py-0.5 rounded border border-purple-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></span> WRITING
-                </span>
-              )}
-              {agentStatus === 'done' && (
-                <span className="text-emerald-400 flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">
-                  <Sparkles className="w-3 h-3 text-emerald-400" /> SYNCED
-                </span>
-              )}
+            <div className="flex items-center gap-3">
+              {/* Client points badge */}
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-bold font-mono">
+                <Coins className="w-3.5 h-3.5 text-indigo-400" /> {clientPoints} pts
+              </div>
+
+              {/* Agent status badge */}
+              <div className="text-xs flex items-center gap-2 font-mono">
+                {agentStatus === 'idle' && (
+                  <span className="text-slate-400 flex items-center gap-1.5 bg-slate-800/40 px-2.5 py-0.5 rounded border border-slate-800">
+                    <span className="w-1 h-1 rounded-full bg-slate-500"></span> IDLE
+                  </span>
+                )}
+                {agentStatus === 'analyzing' && (
+                  <span className="text-yellow-400 flex items-center gap-1.5 bg-yellow-500/10 px-2.5 py-0.5 rounded border border-yellow-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span> ANALISANDO
+                  </span>
+                )}
+                {agentStatus === 'running_go' && (
+                  <span className="text-cyan-400 flex items-center gap-1.5 bg-cyan-500/10 px-2.5 py-0.5 rounded border border-cyan-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span> GO CLI RUNNING
+                  </span>
+                )}
+                {agentStatus === 'writing_files' && (
+                  <span className="text-purple-400 flex items-center gap-1.5 bg-purple-500/10 px-2.5 py-0.5 rounded border border-purple-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></span> WRITING
+                  </span>
+                )}
+                {agentStatus === 'done' && (
+                  <span className="text-emerald-400 flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">
+                    <Sparkles className="w-3 h-3 text-emerald-400" /> SYNCED
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
@@ -80,6 +89,12 @@ export default function LayoutWrapper({ children, isAuthenticated, handleLogout,
                   className={`flex items-center gap-1.5 transition-colors ${location.pathname === '/dashboard' ? 'text-indigo-400' : 'text-slate-400 hover:text-white'}`}
                 >
                   <Layout className="w-3.5 h-3.5" /> Painel Editor
+                </Link>
+                <Link 
+                  to="/admin" 
+                  className={`flex items-center gap-1.5 transition-colors ${location.pathname === '/admin' ? 'text-indigo-400' : 'text-slate-400 hover:text-white'}`}
+                >
+                  <Settings className="w-3.5 h-3.5" /> Admin
                 </Link>
                 <button 
                   onClick={handleLogout}

@@ -7,6 +7,8 @@ use Symfony\Component\Process\Process;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Illuminate\Support\Facades\File;
 use App\Models\Workspace;
+use App\Models\Client;
+use App\Models\Setting;
 
 class AgentController extends Controller
 {
@@ -17,11 +19,31 @@ class AgentController extends Controller
     {
         $request->validate([
             'prompt' => 'required|string',
-            'workspace_id' => 'nullable|string'
+            'workspace_id' => 'nullable|string',
+            'client_id' => 'nullable|string'
         ]);
 
         $prompt = $request->input('prompt');
         $workspaceId = $request->input('workspace_id');
+        $clientId = $request->input('client_id') ?? '11111111-1111-1111-1111-111111111111';
+
+        // Buscar cliente e saldo de pontos
+        $client = Client::firstOrCreate(
+            ['id' => $clientId],
+            ['name' => 'Cliente de Teste', 'email' => 'client@crom.run', 'points' => 500]
+        );
+
+        // Buscar custo da requisição nas configurações
+        $cost = (int)(Setting::where('key', 'points_cost_per_request')->value('value') ?? 10);
+        $openRouterKey = Setting::where('key', 'openrouter_api_key')->value('value') ?? '';
+
+        if ($client->points < $cost) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Saldo de pontos insuficiente para rodar o agente! Você possui apenas ' . $client->points . ' pontos de um custo de ' . $cost . '.',
+                'steps' => ['Verificação de saldo de pontos falhou.']
+            ], 403);
+        }
 
         $binaryPath = base_path('../cli/crom-cli');
         
@@ -43,6 +65,13 @@ class AgentController extends Controller
             '--prompt=' . $prompt,
             '--workspace=' . $workspacePath
         ]);
+
+        // Propagar chave OpenRouter configurada pelo admin
+        if (!empty($openRouterKey)) {
+            $process->setEnv([
+                'OPENROUTER_API_KEY' => $openRouterKey
+            ]);
+        }
 
         // Executar o processo
         $process->run();
@@ -66,6 +95,12 @@ class AgentController extends Controller
                 'raw_output' => $process->getOutput(),
                 'steps' => ['Parse do output falhou']
             ], 500);
+        }
+
+        // Se deu sucesso, debitar pontos do cliente
+        if (isset($output['status']) && $output['status'] === 'success') {
+            $client->decrement('points', $cost);
+            $output['client_points'] = $client->fresh()->points;
         }
 
         return response()->json($output);

@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import About from './pages/About'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import AdminDashboard from './pages/AdminDashboard'
 
 interface Workspace {
   id: string
@@ -36,6 +37,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null)
+  const [clientPoints, setClientPoints] = useState<number>(500)
   
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -78,6 +80,19 @@ export default function App() {
       }
     } catch (err) {
       addLog('laravel', 'warning', 'Erro ao conectar ao Laravel Backend na porta 8000.')
+    }
+  }
+
+  // Fetch client points
+  const fetchClientPoints = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/client-points`)
+      const data = await response.json()
+      if (data.status === 'success') {
+        setClientPoints(data.points)
+      }
+    } catch (err) {
+      console.error('Error fetching client points', err)
     }
   }
 
@@ -217,8 +232,11 @@ export default function App() {
       await new Promise(resolve => setTimeout(resolve, 850))
       setAgentStatus('writing_files')
       
-      if (data.status === 'success') {
+      if (response.ok && data.status === 'success') {
         await syncWorkspaceFiles(activeWorkspace.id)
+        if (data.client_points !== undefined) {
+          setClientPoints(data.client_points)
+        }
         
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
@@ -232,7 +250,7 @@ export default function App() {
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
           sender: 'ai',
-          text: `Erro: ${data.message}`,
+          text: `Erro: ${data.message || 'Falha de processamento'}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }])
         setAgentStatus('idle')
@@ -283,18 +301,29 @@ export default function App() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchWorkspaces()
+      fetchClientPoints()
     }
   }, [isAuthenticated])
 
   return (
     <BrowserRouter>
-      <LayoutWrapper isAuthenticated={isAuthenticated} handleLogout={handleLogout} agentStatus={agentStatus}>
+      <LayoutWrapper isAuthenticated={isAuthenticated} handleLogout={handleLogout} agentStatus={agentStatus} clientPoints={clientPoints}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/sobre" element={<About />} />
           <Route 
             path="/login" 
             element={<Login onLoginSuccess={() => setIsAuthenticated(true)} />} 
+          />
+          <Route 
+            path="/admin" 
+            element={
+              isAuthenticated ? (
+                <AdminDashboard />
+              ) : (
+                <Login onLoginSuccess={() => setIsAuthenticated(true)} />
+              )
+            } 
           />
           <Route 
             path="/dashboard" 
