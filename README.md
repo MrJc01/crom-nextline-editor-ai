@@ -23,6 +23,8 @@ Este projeto faz parte do ecossistema de soberania digital **CROM** (incluindo `
 ├── cli/                # Código fonte e binário do wrapper CLI em Go
 ├── docs/               # Documentação detalhada em Markdown
 │   ├── architecture.md # Detalhamento da arquitetura do sistema
+│   ├── roadmap.md      # Roadmap, diagramas e APIs do sistema
+│   ├── checklist.md    # Checklist e cronograma de tarefas
 │   ├── docker.md       # Instruções para rodar no Docker
 │   └── cli-go-integration.md # Funcionamento do Wrapper Go CLI
 └── docker-compose.yml  # Orquestração local em Docker
@@ -48,5 +50,7 @@ Acesse no seu navegador:
 
 Para mais detalhes sobre as regras de negócio e infraestrutura, veja a pasta [/docs](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs):
 - [Arquitetura Geral](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/architecture.md)
+- [Roadmap do Sistema e APIs](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/roadmap.md)
+- [Checklist de Desenvolvimento](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/checklist.md)
 - [Funcionamento do Go CLI & SDK](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/cli-go-integration.md)
 - [Guia Docker Completo](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/docker.md)
