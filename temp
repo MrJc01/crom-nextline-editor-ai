@@ -1,0 +1,9 @@
+vou usar typescript Tawindcss desaclopado, com o backend em laravel e orquestrando o binario em go(que é só um binario cli que o php vai executar os comadnos)
+
+A ideia é criar o um sistema de edição de sites, com o chat de um lado e o site rodando do outro canva iframe
+
+e modificando o site pedindo para ia
+
+vamos usar o https://github.com/MrJc01/crom-agente-sdk
+https://github.com/MrJc01/crom-agente
+
