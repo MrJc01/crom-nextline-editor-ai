@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LayoutWrapper from './components/LayoutWrapper'
 import Home from './pages/Home'
 import About from './pages/About'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
+import WorkspacesIndex from './pages/WorkspacesIndex'
+import WorkspaceEditor from './pages/WorkspaceEditor'
 import AdminDashboard from './pages/AdminDashboard'
 
 interface Workspace {
@@ -43,7 +44,7 @@ export default function App() {
     {
       id: '1',
       sender: 'ai',
-      text: 'Olá! Sou o assistente Crom. Por favor, crie ou selecione um Workspace na aba lateral para começarmos a editar seu site!',
+      text: 'Olá! Sou o assistente Crom. Por favor, digite sua instrução no chat para começarmos a editar o código deste workspace!',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ])
@@ -52,12 +53,9 @@ export default function App() {
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
   const [activeTab, setActiveTab] = useState<'preview' | 'code' | 'logs'>('preview')
   const [agentStatus, setAgentStatus] = useState<'idle' | 'analyzing' | 'running_go' | 'writing_files' | 'done'>('idle')
-  const [files, setFiles] = useState<{ [key: string]: string }>({ 'index.html': 'Selecione um workspace para visualizar o código.' })
+  const [files, setFiles] = useState<{ [key: string]: string }>({ 'index.html': 'Carregando arquivos do workspace...' })
   const [selectedFile, setSelectedFile] = useState('index.html')
   
-  // Modal states
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [newWorkspaceName, setNewWorkspaceName] = useState('')
 
   // Terminal logs state
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([
@@ -112,43 +110,44 @@ export default function App() {
     }
   }
 
-  // Select active workspace
-  const handleSelectWorkspace = (ws: Workspace) => {
-    setActiveWorkspace(ws)
-    syncWorkspaceFiles(ws.id)
-    setMessages([
-      {
-        id: '1',
-        sender: 'ai',
-        text: `Workspace "${ws.name}" selecionado com sucesso! Como gostaria de alterar este site?`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ])
-    addLog('laravel', 'info', `Workspace ativo alterado para: ${ws.name}`)
+  // Load a workspace from routing param
+  const handleLoadWorkspace = (id: string) => {
+    const found = workspaces.find(w => w.id === id)
+    if (found) {
+      setActiveWorkspace(found)
+      syncWorkspaceFiles(found.id)
+      addLog('laravel', 'info', `Workspace carregado para edição: ${found.name}`)
+    } else {
+      // Se a lista de workspaces ainda estiver vazia no primeiro render, tenta carregar após fetch
+      fetchWorkspaces().then(() => {
+        const retryFound = workspaces.find(w => w.id === id)
+        if (retryFound) {
+          setActiveWorkspace(retryFound)
+          syncWorkspaceFiles(retryFound.id)
+        }
+      })
+    }
   }
 
   // Handle Create Workspace
-  const handleCreateWorkspace = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newWorkspaceName.trim()) return
-
+  const handleCreateWorkspace = async (name: string): Promise<string | null> => {
     try {
       const response = await fetch(`${API_BASE}/workspaces`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newWorkspaceName })
+        body: JSON.stringify({ name })
       })
       const data = await response.json()
       if (data.status === 'success') {
-        setNewWorkspaceName('')
-        setIsCreateModalOpen(false)
         addLog('laravel', 'success', `Novo workspace criado: ${data.workspace.name}`)
         await fetchWorkspaces()
-        handleSelectWorkspace(data.workspace)
+        setActiveWorkspace(data.workspace)
+        return data.workspace.id
       }
     } catch (err) {
       addLog('laravel', 'warning', 'Falha ao criar workspace no backend.')
     }
+    return null
   }
 
   // Start Workspace Nginx Container
@@ -328,36 +327,51 @@ export default function App() {
           <Route 
             path="/dashboard" 
             element={
-              <Dashboard 
-                workspaces={workspaces}
-                activeWorkspace={activeWorkspace}
-                messages={messages}
-                inputText={inputText}
-                setInputText={setInputText}
-                isProcessing={isProcessing}
-                previewMode={previewMode}
-                setPreviewMode={setPreviewMode}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                files={files}
-                selectedFile={selectedFile}
-                setSelectedFile={setSelectedFile}
-                isCreateModalOpen={isCreateModalOpen}
-                setIsCreateModalOpen={setIsCreateModalOpen}
-                newWorkspaceName={newWorkspaceName}
-                setNewWorkspaceName={setNewWorkspaceName}
-                terminalLogs={terminalLogs}
-                setTerminalLogs={setTerminalLogs}
-                handleSelectWorkspace={handleSelectWorkspace}
-                handleCreateWorkspace={handleCreateWorkspace}
-                handleStartDocker={handleStartDocker}
-                handleStopDocker={handleStopDocker}
-                handleSendMessage={handleSendMessage}
-                handleResetWorkspace={handleResetWorkspace}
-                getIframeSrc={getIframeSrc}
-              />
+              isAuthenticated ? (
+                 <WorkspacesIndex 
+                  workspaces={workspaces}
+                  handleStartDocker={handleStartDocker}
+                  handleStopDocker={handleStopDocker}
+                  handleCreateWorkspace={handleCreateWorkspace}
+                />
+              ) : (
+                <Login onLoginSuccess={() => setIsAuthenticated(true)} />
+              )
             } 
           />
+          <Route 
+            path="/workspace/:id" 
+            element={
+              isAuthenticated ? (
+                <WorkspaceEditor 
+                  activeWorkspace={activeWorkspace}
+                  messages={messages}
+                  inputText={inputText}
+                  setInputText={setInputText}
+                  isProcessing={isProcessing}
+                  previewMode={previewMode}
+                  setPreviewMode={setPreviewMode}
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  files={files}
+                  selectedFile={selectedFile}
+                  setSelectedFile={setSelectedFile}
+                  terminalLogs={terminalLogs}
+                  setTerminalLogs={setTerminalLogs}
+                  handleLoadWorkspace={handleLoadWorkspace}
+                  handleStartDocker={handleStartDocker}
+                  handleStopDocker={handleStopDocker}
+                  handleSendMessage={handleSendMessage}
+                  handleResetWorkspace={handleResetWorkspace}
+                  getIframeSrc={getIframeSrc}
+                />
+              ) : (
+                <Login onLoginSuccess={() => setIsAuthenticated(true)} />
+              )
+            } 
+          />
+          {/* Fallback redirect to Home */}
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </LayoutWrapper>
     </BrowserRouter>
