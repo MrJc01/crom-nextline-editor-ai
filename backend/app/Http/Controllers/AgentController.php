@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Illuminate\Support\Facades\File;
+use App\Models\Workspace;
 
 class AgentController extends Controller
 {
@@ -16,11 +17,24 @@ class AgentController extends Controller
     {
         $request->validate([
             'prompt' => 'required|string',
+            'workspace_id' => 'nullable|string'
         ]);
 
         $prompt = $request->input('prompt');
+        $workspaceId = $request->input('workspace_id');
+
         $binaryPath = base_path('../cli/crom-cli');
-        $workspacePath = base_path('../frontend/public/preview-site');
+        
+        // Determinar o caminho local do workspace
+        $workspacePath = $this->getWorkspaceLocalPath($workspaceId);
+
+        if (!$workspacePath) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Workspace inválido ou não encontrado.',
+                'steps' => ['Resolução do workspace falhou']
+            ], 404);
+        }
 
         // Instanciar o processo Symfony para rodar o binário Go CLI
         $process = new Process([
@@ -60,9 +74,18 @@ class AgentController extends Controller
     /**
      * Get the code of files in the preview workspace.
      */
-    public function getFiles()
+    public function getFiles(Request $request)
     {
-        $workspacePath = base_path('../frontend/public/preview-site');
+        $workspaceId = $request->query('workspace_id');
+        $workspacePath = $this->getWorkspaceLocalPath($workspaceId);
+
+        if (!$workspacePath) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Workspace inválido ou não encontrado.'
+            ], 404);
+        }
+
         $indexPath = $workspacePath . '/index.html';
 
         if (!File::exists($indexPath)) {
@@ -85,10 +108,18 @@ class AgentController extends Controller
     /**
      * Reset the preview workspace back to original state.
      */
-    public function resetWorkspace()
+    public function resetWorkspace(Request $request)
     {
+        $workspaceId = $request->input('workspace_id');
         $binaryPath = base_path('../cli/crom-cli');
-        $workspacePath = base_path('../frontend/public/preview-site');
+        $workspacePath = $this->getWorkspaceLocalPath($workspaceId);
+
+        if (!$workspacePath) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Workspace inválido ou não encontrado.'
+            ], 404);
+        }
 
         $process = new Process([
             $binaryPath,
@@ -108,5 +139,22 @@ class AgentController extends Controller
 
         $output = json_decode($process->getOutput(), true);
         return response()->json($output);
+    }
+
+    /**
+     * Helper to resolve the workspace local path in the container.
+     */
+    private function getWorkspaceLocalPath($workspaceId)
+    {
+        if (empty($workspaceId)) {
+            return base_path('../frontend/public/preview-site');
+        }
+
+        $workspace = Workspace::find($workspaceId);
+        if (!$workspace) {
+            return null;
+        }
+
+        return base_path('../frontend/public/preview-site/workspaces/' . $workspace->id);
     }
 }
