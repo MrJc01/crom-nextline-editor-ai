@@ -13,6 +13,7 @@ Este documento apresenta o plano detalhado de implementação do **Crom Nextline
   - [x] [docs/README.md (Index)](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/README.md)
   - [x] [docs/architecture.md (Arquitetura)](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/architecture.md)
   - [x] [docs/docker.md (Guia Docker)](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/docker.md)
+  - [x] [docs/workspaces-docker.md (Arquitetura Multi-Tenant)](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/workspaces-docker.md)
 
 ---
 
@@ -29,44 +30,49 @@ Este documento apresenta o plano detalhado de implementação do **Crom Nextline
 
 ---
 
-### Etapa 3: Estrutura do Backend (Laravel 11) 🟡 (50% Concluído)
+### Etapa 3: Estrutura do Backend (Laravel 11) 🟢 (100% Concluído)
 - [x] Criar o scaffold limpo do Laravel 11 no diretório `/backend` via Docker.
 - [x] Executar migrations do banco de dados inicial (SQLite).
 - [x] Habilitar e publicar o suporte a API Routes e CORS:
   - [x] Criado o arquivo de rotas [routes/api.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/routes/api.php).
   - [x] Habilitadas configurações globais de CORS no [config/cors.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/config/cors.php) permitindo comunicação com a porta do Vite.
   - [x] Configurado o [bootstrap/app.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/bootstrap/app.php) para responder JSON em exceções na API.
-- [ ] Criar rotas da API:
-  - [ ] Rota `POST /api/command` no Laravel para receber o prompt do usuário enviado pelo chat.
-- [ ] Criar o Controller Laravel:
-  - [ ] Implementar chamada assíncrona ao wrapper nativo do Go (`crom-cli`) usando o componente Symfony Process do Laravel.
-- [ ] Configurar mecanismo de Hot Reload / SSE (Server-Sent Events) no Laravel para emitir sinais de recarregamento para o Iframe.
+- [x] Criar rotas da API:
+  - [x] Rota `POST /api/command` no Laravel para receber o prompt do usuário enviado pelo chat.
+  - [x] Rota `GET /api/files` para listagem dinâmica de arquivos.
+  - [x] Rotas `/api/workspaces` para listagem, criação e controle Docker.
+- [x] Criar os Controllers Laravel:
+  - [x] [AgentController.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/app/Http/Controllers/AgentController.php) para gerenciar prompts e editar o site via Go CLI.
+  - [x] [WorkspaceController.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/app/Http/Controllers/WorkspaceController.php) para gerenciar contêineres Docker do preview em tempo real.
+- [x] Criar a migration e o modelo Eloquent `Workspace`.
 
 ---
 
-### Etapa 4: CLI Wrapper em Go (`cli/crom-cli`) 🔴 (A Fazer)
-- [ ] Inicializar o módulo Go em `/cli` (`go mod init crom-cli`).
-- [ ] Adicionar e integrar as dependências do `crom-agente` e seu SDK (`crom-agente-sdk`).
-- [ ] Criar parser de argumentos CLI (`--action`, `--prompt`, `--path`) para receber instruções do Laravel.
-- [ ] Implementar a lógica para invocar o Crom Agente, atualizar os arquivos locais do site e gerar resposta legível (JSON) para o Laravel.
-- [ ] Escrever script de compilação ou automatização do build do binário em Go.
+### Etapa 4: CLI Wrapper em Go (`cli/crom-cli`) 🟢 (100% Concluído)
+- [x] Inicializar o módulo Go em `/cli`.
+- [x] Adicionar e integrar as dependências do `crom-agente` e do SDK WebSocket (`github.com/gorilla/websocket`).
+- [x] Criar parser de argumentos CLI (`--action`, `--prompt`, `--workspace`) para receber instruções do Laravel.
+- [x] Implementar a lógica no [main.go](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/cli/main.go) para invocar o Crom Agente, atualizar os arquivos locais do site e gerar resposta legível (JSON) para o Laravel.
+- [x] Testar a compilação do binário estático executável.
 
 ---
 
-### Etapa 5: Orquestração Multi-Container (Docker Compose) 🟡 (10% Concluído)
+### Etapa 5: Orquestração Multi-Container (Docker Compose) 🟢 (100% Concluído)
 - [x] Criado o Dockerfile do frontend.
-- [ ] Criar o Dockerfile para o backend (PHP 8.3 + FPM ou PHP CLI para desenvolvimento).
-- [ ] Escrever o `docker-compose.yml` na raiz do projeto contendo os serviços `frontend` e `backend`.
-- [ ] Configurar volumes compartilhados entre os contêineres para que as alterações feitas pela CLI Go no backend reflitam imediatamente na pasta de arquivos lida pelo visualizador do frontend.
+- [x] Criado o [Dockerfile para o backend Laravel](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/Dockerfile) (PHP 8.4 CLI alpine).
+- [x] Escrever o [docker-compose.yml](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docker-compose.yml) na raiz do projeto contendo os serviços `frontend` e `backend`.
+- [x] Sincronizar volumes locais e mapear o Docker Socket `/var/run/docker.sock` para o contêiner do Laravel poder orquestrar contêineres irmãos.
 
 ---
 
-### Etapa 6: Homologação e Testes de Integração 🔴 (A Fazer)
-- [ ] Testar subida limpa do ambiente via `docker compose up --build`.
+### Etapa 6: Homologação e Testes de Integração 🟡 (50% Concluído)
+- [x] Validar que o build de produção do frontend compila 100% limpo.
+- [x] Testar execução local do binário Go atualizando os arquivos do site.
+- [x] Validar que as rotas de API do Laravel estão mapeadas e respondem via container Composer.
+- [ ] Subir todo o ambiente integrado via `docker compose up --build`.
 - [ ] Realizar teste ponta a ponta:
   1. Digitar instrução no chat (Frontend).
   2. Receber chamada na rota `/api/command` (Laravel).
   3. Executar o binário Go wrapper que ativa o Crom Agente (CLI).
   4. Crom Agente edita os arquivos do site no disco (Workspace).
-  5. Laravel emite sinal de reload (WebSocket/SSE).
-  6. Iframe recarrega mostrando a nova alteração no design (Frontend).
+  5. Iframe recarrega mostrando a nova alteração no design (Frontend).
