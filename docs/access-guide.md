@@ -11,6 +11,20 @@ Ao inicializar a stack local via Docker ou comando direto, os seguintes endereç
 - **Frontend SPA (Vite):** [http://localhost:5173](http://localhost:5173)
 - **Backend API (Laravel):** [http://localhost:8000](http://localhost:8000)
 
+### 👤 Usuários de Teste Iniciais
+
+Utilize as seguintes contas e credenciais padrão para acessar e testar o sistema localmente:
+
+* **Administrador (Painel Admin & Configurações)**
+  - **E-mail:** `admin@crom.run`
+  - **Senha:** `password`
+  - **Função:** Controlar chaves API do OpenRouter, definir custos de processamento e monitorar contêineres Docker.
+
+* **Cliente de Teste (Editor de Workspaces)**
+  - **E-mail:** `client@crom.run`
+  - **ID no Banco de Dados:** `11111111-1111-1111-1111-111111111111`
+  - **Saldo Inicial:** `500 pontos` (cada alteração desconta os pontos do saldo deste cliente).
+
 ### Perfis de Acesso
 
 O login simula dois fluxos operacionais principais dependendo do endereço que você acessa ou da conta logada:
