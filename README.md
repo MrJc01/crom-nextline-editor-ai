@@ -50,6 +50,7 @@ Acesse no seu navegador:
 
 Para mais detalhes sobre as regras de negócio e infraestrutura, veja a pasta [/docs](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs):
 - [Arquitetura Geral](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/architecture.md)
+- [Multi-Workspaces e Dockerização Dinâmica](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/workspaces-docker.md)
 - [Roadmap do Sistema e APIs](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/roadmap.md)
 - [Checklist de Desenvolvimento](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/checklist.md)
 - [Funcionamento do Go CLI & SDK](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/cli-go-integration.md)

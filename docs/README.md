@@ -12,9 +12,11 @@ Abaixo estão os documentos detalhados que descrevem cada parte do sistema:
    - Explica como o binário CLI em Go se conecta ao `crom-agente` e `crom-agente-sdk`, e como o Laravel orquestra essas chamadas.
 3. **[Guia do Docker e Containerização](docker.md)**
    - Demonstra a configuração do ambiente multi-container usando Docker e Docker Compose para subir todo o sistema facilmente.
-4. **[Roadmap do Sistema](roadmap.md)**
+4. **[Multi-Workspaces e Dockerização Dinâmica](workspaces-docker.md)**
+   - Explica o ciclo de vida dos contêineres Docker isolados de cada projeto/usuário.
+5. **[Roadmap do Sistema](roadmap.md)**
    - Detalha as rotas da API backend, o roteamento frontend e o diagrama de sequência do ciclo de vida das requisições.
-5. **[Checklist e Cronograma de Desenvolvimento](checklist.md)**
+6. **[Checklist e Cronograma de Desenvolvimento](checklist.md)**
    - Um acompanhamento do progresso das tarefas de desenvolvimento separadas por etapas.
 
 ---
