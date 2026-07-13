@@ -1,0 +1,29 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    working_dir: /var/www/backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/var/www/backend
+      - ./cli:/var/www/cli
+      - ./frontend:/var/www/frontend
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - APP_KEY=base64:XG8d1pI4s0vG6z2L1e6b8w9K5f7j4k3m2n1p0q9r8sA=
