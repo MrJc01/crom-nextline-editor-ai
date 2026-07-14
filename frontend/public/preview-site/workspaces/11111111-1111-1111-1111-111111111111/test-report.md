@@ -1,19 +1,43 @@
 # Relatório de Execução de Testes Automatizados
 
-Este relatório apresenta os resultados da execução das suítes de testes automatizados no **Crom Nextline Editor AI**. Todos os 15 testes foram executados com sucesso e obtiveram status **PASS**.
+Este relatório apresenta os resultados da execução das suítes de testes unitários, funcionais e de integração de ponta a ponta no **Crom Nextline Editor AI**. Todos os testes foram executados com sucesso e obtiveram status **PASS**.
 
 ---
 
 ## 📊 Resumo Executivo
-* **Total de Testes Planejados:** 15
-* **Total de Testes Executados:** 15
-* **Passou (PASS):** 15 (100%)
+* **Total de Testes Planejados:** 16 (15 unitários/features + 1 E2E Playwright)
+* **Total de Testes Executados:** 16
+* **Passou (PASS):** 16 (100%)
 * **Falhou (FAIL):** 0
 * **Data da Execução:** 13/07/2026
 
 ---
 
-## 🟢 1. Testes do Backend (Laravel PHPUnit)
+## 👥 3 Workspaces de Teste Semeados
+Para homologar a navegação e o seletor em grade do cliente, os seguintes workspaces foram criados no banco de dados SQLite e no disco:
+1. **Landing Page de Academia** (ID: `22222222-2222-2222-2222-222222222222` / Porta: `9002`)
+2. **E-Commerce de Calçados** (ID: `33333333-3333-3333-3333-333333333333` / Porta: `9003`)
+3. **Portal de Eventos Tech** (ID: `44444444-4444-4444-4444-444444444444` / Porta: `9004`)
+
+---
+
+## 🎭 1. Teste de Integração E2E (Playwright)
+* **Comando Executado:** `npx playwright test`
+* **Local:** `frontend/tests/playwright.spec.ts`
+* **Descrição:** Simula o fluxo completo do cliente no navegador: Login (`client@crom.run`/`password`), redirecionamento automático para a listagem `/dashboard`, verificação de presença dos 3 novos workspaces semeados, clique de navegação para a URL amigável `/workspace/22222222-2222-2222-2222-222222222222`, envio de prompt via chat de comandos, e navegação final para a página "Sobre".
+
+### Resultado do Terminal:
+```
+Running 1 test using 1 worker
+     1 …luxo completo: Login -> Dashboard -> Listagem dos 3 Workspaces -> Editor
+  ✓  1 …pleto: Login -> Dashboard -> Listagem dos 3 Workspaces -> Editor (725ms)
+
+  1 passed (1.7s)
+```
+
+---
+
+## 🟢 2. Testes do Backend (Laravel PHPUnit)
 * **Comando Executado:** `php artisan test`
 * **Local:** `backend/tests/Feature/CromSystemTest.php`
 
@@ -38,7 +62,7 @@ Duration: 0.29s
 
 ---
 
-## 🟢 2. Testes do Frontend (React Vitest)
+## 🟢 3. Testes do Frontend (React Vitest)
 * **Comando Executado:** `npx vitest run`
 * **Local:** `frontend/src/tests/frontend.test.ts`
 
@@ -61,7 +85,7 @@ Test Files  1 passed (1)
 
 ---
 
-## 🟢 3. Testes da CLI Go (Go Testing Tool)
+## 🟢 4. Testes da CLI Go (Go Testing Tool)
 * **Comando Executado:** `go test -v`
 * **Local:** `cli/main_test.go`
 
@@ -80,11 +104,3 @@ Test Files  1 passed (1)
 PASS
 ok      crom-cli        0.002s
 ```
-
----
-
-## 🤖 Modelos Utilizados e Configurados
-De acordo com os parâmetros de homologação de IA ativos nas tabelas SQLite:
-* **Modelo Default (Ativo):** `google/gemini-2.0-flash`
-* **Modelo para Codificação (Ativo):** `meta-llama/llama-3.3-70b-instruct`
-* **Modelo Alternativo / Fallback (Ativo):** `deepseek/deepseek-chat` (DeepSeek V3)
