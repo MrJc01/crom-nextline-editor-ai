@@ -22,6 +22,7 @@ Utilize as seguintes contas e credenciais padrão para acessar e testar o sistem
 
 * **Cliente de Teste (Editor de Workspaces)**
   - **E-mail:** `client@crom.run`
+  - **Senha:** `password`
   - **ID no Banco de Dados:** `11111111-1111-1111-1111-111111111111`
   - **Saldo Inicial:** `500 pontos` (cada alteração desconta os pontos do saldo deste cliente).
 
