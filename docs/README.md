@@ -24,6 +24,10 @@ Abaixo estão os documentos detalhados que descrevem cada parte do sistema:
    - Explica o fluxo de autenticação Sanctum, o roteamento de previews por slug, portas ou subdomínios, e o tratamento de erros.
 9. **[Detecção Automática de Stacks](stack-detection.md)**
    - Detalha a classificação dinâmica das stacks de projeto e a lógica de reinício inteligente de contêineres.
+10. **[Relatório de Segurança e Hardening (Pentests)](security-hardening.md)**
+    - Relato detalhado das validações de segurança da sandbox e os resultados de 55 testes de penetração executados.
+11. **[Guia de Instalação e Implantação](installation-guide.md)**
+    - Manual para instalação local em desenvolvimento/testes e diretrizes de hardening do Docker Socket para produção.
 
 ---
 

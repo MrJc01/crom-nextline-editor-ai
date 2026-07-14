@@ -13,7 +13,7 @@ Este projeto faz parte do ecossistema de soberania digital **CROM** (incluindo `
 ## 🛠️ Tecnologias Utilizadas
 
 - **Frontend:** TypeScript, React (Vite) e Tailwind CSS v4.
-- **Backend:** PHP 8.3 e Laravel 11.
+- **Backend:** PHP 8.4 e Laravel 11.
 - **CLI / Orquestrador:** Go wrapper (`crom-cli`) que consome o SDK do `crom-agente`.
 - **Infraestrutura:** Docker e Docker Compose para inicialização rápida.
 
@@ -30,6 +30,8 @@ Este projeto faz parte do ecossistema de soberania digital **CROM** (incluindo `
 │   ├── roadmap.md      # Roadmap, diagramas e APIs do sistema
 │   ├── checklist.md    # Checklist e cronograma de tarefas
 │   ├── docker.md       # Instruções para rodar no Docker
+│   ├── installation-guide.md # Guia completo de instalação e produção
+│   ├── security-hardening.md # Relatório de segurança e pentests
 │   └── cli-go-integration.md # Funcionamento do Wrapper Go CLI
 └── docker-compose.yml  # Orquestração local em Docker
 ```
@@ -55,8 +57,9 @@ Acesse no seu navegador:
 ---
 
 ## 🧪 Como Executar a Suíte de Testes
-Temos uma suíte robusta de 27 testes automatizados validando toda a aplicação:
-- **Backend (Laravel):** `docker exec crom-backend-srv php artisan test`
+Temos uma suíte robusta de testes automatizados:
+- **Backend (Laravel Feature & Unit):** `docker exec crom-backend-srv php artisan test --testsuite=Feature`
+- **Backend (Pentests - 55 casos):** `docker exec crom-backend-srv php artisan test --testsuite=Pentest`
 - **Frontend (Vitest):** `cd frontend && npx vitest run src/tests/frontend.test.ts`
 - **Go CLI:** `cd cli && go test -v`
 - **E2E Playwright:** `cd frontend && npx playwright test`
@@ -67,6 +70,8 @@ Temos uma suíte robusta de 27 testes automatizados validando toda a aplicação
 
 Para mais detalhes sobre as regras de negócio e infraestrutura, veja a pasta [/docs](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs):
 - [README Geral da Pasta Docs](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/README.md)
+- [Guia de Instalação e Implantação](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/installation-guide.md)
+- [Relatório de Segurança e Hardening (Pentests)](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/security-hardening.md)
 - [Arquitetura Geral](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/architecture.md)
 - [Multi-Workspaces e Dockerização Dinâmica](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/workspaces-docker.md)
 - [Guia de Acesso e Login](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/access-guide.md)
