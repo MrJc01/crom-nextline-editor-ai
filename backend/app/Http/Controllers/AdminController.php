@@ -9,10 +9,21 @@ use App\Models\Setting;
 class AdminController extends Controller
 {
     /**
+     * Verifica se o usuário autenticado é admin. Aborta com 403 caso contrário.
+     */
+    private function authorizeAdmin(): void
+    {
+        $user = auth()->user();
+        if (!$user || $user->role !== 'admin') {
+            abort(403, 'Acesso restrito a administradores.');
+        }
+    }
+    /**
      * Get settings list.
      */
     public function getSettings()
     {
+        $this->authorizeAdmin();
         $settings = Setting::all()->pluck('value', 'key');
         return response()->json([
             'status' => 'success',
@@ -25,6 +36,7 @@ class AdminController extends Controller
      */
     public function updateSettings(Request $request)
     {
+        $this->authorizeAdmin();
         $data = $request->validate([
             'openrouter_api_key' => 'nullable|string',
             'points_cost_per_request' => 'required|integer|min:0'
@@ -45,6 +57,7 @@ class AdminController extends Controller
      */
     public function getClients()
     {
+        $this->authorizeAdmin();
         $clients = Client::all();
         return response()->json([
             'status' => 'success',
@@ -57,8 +70,9 @@ class AdminController extends Controller
      */
     public function grantPoints(Request $request, $id)
     {
+        $this->authorizeAdmin();
         $request->validate([
-            'points' => 'required|integer'
+            'points' => 'required|integer|min:1'
         ]);
 
         $client = Client::find($id);
