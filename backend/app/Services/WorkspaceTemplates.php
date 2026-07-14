@@ -100,36 +100,49 @@ PHP);
 package main
 
 import (
-	"fmt"
+	"html/template"
+	"log"
 	"net/http"
 )
 
 func main() {
+	// Serve arquivos estáticos da pasta /static
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "<h1>{$name}</h1><p>Servidor Go rodando em contêiner isolado.</p>")
+		tmpl, err := template.ParseFiles("templates/index.html")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		tmpl.Execute(w, map[string]interface{}{
+			"Title": "{$name}",
+		})
 	})
+
+	log.Println("Server starting on :8080")
 	http.ListenAndServe(":8080", nil)
 }
 GO);
+        $this->put($dir, 'templates/index.html', $this->staticHtml($name));
     }
 
     private function python(string $dir, string $name): void
     {
         $this->put($dir, 'requirements.txt', "flask\n");
         $this->put($dir, 'app.py', <<<PY
-from flask import Flask
+from flask import Flask, render_template
 
-app = Flask(__name__)
-
+app = Flask(__name__, template_folder='templates', static_folder='static')
 
 @app.route("/")
 def home():
-    return "<h1>{$name}</h1><p>Servidor Flask rodando em contêiner isolado.</p>"
-
+    return render_template("index.html", title="{$name}")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
 PY);
+        $this->put($dir, 'templates/index.html', $this->staticHtml($name));
     }
 
     private function slug(string $name): string

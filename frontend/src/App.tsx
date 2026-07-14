@@ -643,6 +643,7 @@ export default function App() {
               isAuthenticated ? (
                 <WorkspaceEditor 
                   activeWorkspace={activeWorkspace}
+                  addLog={addLog}
                   threads={threads}
                   activeThreadId={activeThreadId}
                   setActiveThreadId={setActiveThreadId}
@@ -656,6 +657,7 @@ export default function App() {
                   fileTree={fileTree}
                   treeLoading={treeLoading}
                   openFile={openFile}
+                  setOpenFile={setOpenFile}
                   handleSelectFile={handleSelectFile}
                   handleSaveFile={handleSaveFile}
                   handleClearChat={handleClearChat}

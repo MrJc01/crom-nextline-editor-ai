@@ -47,6 +47,7 @@ interface WorkspaceEditorProps {
   fileTree: FileNode[]
   treeLoading: boolean
   openFile: OpenFile | null
+  setOpenFile: (val: OpenFile | null) => void
   handleSelectFile: (path: string) => void
   handleSaveFile: (path: string, content: string) => Promise<boolean>
   handleClearChat: () => void
@@ -63,6 +64,7 @@ interface WorkspaceEditorProps {
   allowedModels: string[]
   selectedModel: string
   setSelectedModel: (val: string) => void
+  addLog: (source: 'laravel' | 'go' | 'crom-agent', type: 'info' | 'success' | 'warning', message: string) => void
 }
 
 const STACK_LABELS: Record<string, string> = {
@@ -99,6 +101,7 @@ function StatusBadge({ status }: { status: Workspace['status'] }) {
 
 export default function WorkspaceEditor({
   activeWorkspace,
+  addLog,
   threads,
   activeThreadId,
   setActiveThreadId,
@@ -112,6 +115,7 @@ export default function WorkspaceEditor({
   fileTree,
   treeLoading,
   openFile,
+  setOpenFile,
   handleSelectFile,
   handleSaveFile,
   handleClearChat,
@@ -138,8 +142,18 @@ export default function WorkspaceEditor({
   // Local tabs state
   const [activeLeftTab, setActiveLeftTab] = useState<'chat' | 'settings'>('chat')
   const [activeRightTab, setActiveRightTab] = useState<'preview' | 'code'>('preview')
+  const [activeMobileView, setActiveMobileView] = useState<'chat' | 'preview' | 'code'>('chat')
   const [isTerminalExpanded, setIsTerminalExpanded] = useState(false)
   const [dockerLogs, setDockerLogs] = useState<string>('')
+
+  const selectMobileView = (view: 'chat' | 'preview' | 'code') => {
+    setActiveMobileView(view);
+    if (view === 'preview') {
+      setActiveRightTab('preview');
+    } else if (view === 'code') {
+      setActiveRightTab('code');
+    }
+  };
 
   // Multi-thread views state
   const [chatView, setChatView] = useState<'list' | 'chat'>('list')
@@ -164,6 +178,34 @@ export default function WorkspaceEditor({
     setEditing(false)
     setDraft(openFile?.content ?? '')
   }, [openFile?.path])
+
+  // Captura erros de JavaScript e mensagens de console.error/warn enviados do Preview
+  useEffect(() => {
+    const handleIframeMessage = (event: MessageEvent) => {
+      if (event.data && typeof event.data === 'object') {
+        if (event.data.type === 'iframe-js-error') {
+          const { message, source, lineno, colno, stack } = event.data;
+          addLog(
+            'go',
+            'warning',
+            `[JS Error] ${message} em ${source || 'origem'}:${lineno}:${colno}`
+          );
+          if (stack) {
+            console.error('[Preview JS Error Stack]', stack);
+          }
+        } else if (event.data.type === 'iframe-console-error') {
+          addLog('go', 'warning', `[console.error] ${event.data.message}`);
+        } else if (event.data.type === 'iframe-console-warn') {
+          addLog('go', 'info', `[console.warn] ${event.data.message}`);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleIframeMessage);
+    return () => {
+      window.removeEventListener('message', handleIframeMessage);
+    };
+  }, [addLog]);
 
   const onSave = async () => {
     if (!openFile) return
@@ -250,15 +292,15 @@ export default function WorkspaceEditor({
 
   return (
     <div className="flex-grow flex flex-col overflow-hidden bg-slate-950">
-      
+
       {/* Editor Inner Navigation Header */}
       <header className="flex items-center justify-between border-b border-slate-900 bg-slate-950/60 px-6 py-3.5 shrink-0 z-10">
         <div className="flex items-center gap-4">
-          <Link 
+          <Link
             to="/dashboard"
             className="flex items-center gap-1 text-xs font-bold text-slate-400 hover:text-white transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" /> Voltar
+            <ArrowLeft className="w-4 h-4" />
           </Link>
           <div className="h-4 w-px bg-slate-800"></div>
           <div>
@@ -275,8 +317,6 @@ export default function WorkspaceEditor({
 
         {/* Quick Docker control actions directly in header */}
         <div className="flex items-center gap-3">
-          <span className="text-[10px] text-slate-505 font-mono">Slug: {activeWorkspace.slug}</span>
-          <div className="h-4 w-px bg-slate-800"></div>
           {activeWorkspace.status === 'running' ? (
             <button
               onClick={() => handleStopDocker(activeWorkspace.id)}
@@ -301,26 +341,27 @@ export default function WorkspaceEditor({
       </header>
 
       {/* Main Content Split layout */}
-      <div className="flex flex-grow w-full overflow-hidden">
-        
+      <div className="flex flex-grow w-full overflow-hidden relative">
+
         {/* Left Panel: Chat Control / Settings */}
-        <div className="w-[420px] md:w-[450px] shrink-0 border-r border-slate-900 flex flex-col bg-slate-900/40 relative">
+        <div className={`
+          ${activeMobileView === 'chat' ? 'flex' : 'hidden md:flex'}
+          w-full md:w-[450px] shrink-0 border-r border-slate-900 flex flex-col bg-slate-900/40 relative
+        `}>
           {/* Tabs header */}
           <div className="flex border-b border-slate-900 bg-slate-950/20 text-xs shrink-0 select-none">
-            <button 
+            <button
               onClick={() => setActiveLeftTab('chat')}
-              className={`flex-1 py-3 px-4 font-semibold text-center transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${
-                activeLeftTab === 'chat' ? 'border-indigo-500 text-white bg-slate-900/40' : 'border-transparent text-slate-450 hover:text-slate-200'
-              }`}
+              className={`flex-1 py-3 px-4 font-semibold text-center transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${activeLeftTab === 'chat' ? 'border-indigo-500 text-white bg-slate-900/40' : 'border-transparent text-slate-450 hover:text-slate-200'
+                }`}
             >
               <MessageSquare className="w-3.5 h-3.5" />
               Chat de Comando
             </button>
-            <button 
+            <button
               onClick={() => setActiveLeftTab('settings')}
-              className={`flex-1 py-3 px-4 font-semibold text-center transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${
-                activeLeftTab === 'settings' ? 'border-indigo-500 text-white bg-slate-900/40' : 'border-transparent text-slate-450 hover:text-slate-200'
-              }`}
+              className={`flex-1 py-3 px-4 font-semibold text-center transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${activeLeftTab === 'settings' ? 'border-indigo-500 text-white bg-slate-900/40' : 'border-transparent text-slate-450 hover:text-slate-200'
+                }`}
             >
               <Settings className="w-3.5 h-3.5" />
               Configurações
@@ -349,7 +390,7 @@ export default function WorkspaceEditor({
                       <Sparkles className="w-3 h-3" /> Nova Conversa
                     </button>
                   </div>
-                  
+
                   {/* Campo de Busca */}
                   <div className="relative">
                     <input
@@ -372,7 +413,7 @@ export default function WorkspaceEditor({
 
                 {/* Lista de Conversas */}
                 <div className="flex-grow overflow-y-auto p-3 space-y-2 select-none">
-                  {threads.filter(t => 
+                  {threads.filter(t =>
                     t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     t.messages.some(m => m.text.toLowerCase().includes(searchQuery.toLowerCase()))
                   ).length === 0 ? (
@@ -381,14 +422,14 @@ export default function WorkspaceEditor({
                       <span>Nenhuma conversa encontrada</span>
                     </div>
                   ) : (
-                    threads.filter(t => 
+                    threads.filter(t =>
                       t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                       t.messages.some(m => m.text.toLowerCase().includes(searchQuery.toLowerCase()))
                     ).map((thread) => {
                       const isActive = thread.id === activeThreadId
                       const lastMsg = thread.messages[thread.messages.length - 1]
                       const snippet = lastMsg ? lastMsg.text : 'Sem mensagens'
-                      
+
                       return (
                         <div
                           key={thread.id}
@@ -396,11 +437,10 @@ export default function WorkspaceEditor({
                             setActiveThreadId(thread.id)
                             setChatView('chat')
                           }}
-                          className={`group flex items-start justify-between p-3 rounded-lg border cursor-pointer transition-all ${
-                            isActive
-                              ? 'bg-indigo-650/15 border-indigo-500/50 text-white shadow-sm'
-                              : 'bg-slate-900/25 border-slate-800 hover:bg-slate-900/55 hover:border-slate-700/60 text-slate-300'
-                          }`}
+                          className={`group flex items-start justify-between p-3 rounded-lg border cursor-pointer transition-all ${isActive
+                            ? 'bg-indigo-650/15 border-indigo-500/50 text-white shadow-sm'
+                            : 'bg-slate-900/25 border-slate-800 hover:bg-slate-900/55 hover:border-slate-700/60 text-slate-300'
+                            }`}
                         >
                           <div className="flex-grow min-w-0 pr-2">
                             <div className="flex items-center justify-between mb-1 gap-2">
@@ -415,7 +455,7 @@ export default function WorkspaceEditor({
                               {snippet}
                             </p>
                           </div>
-                          
+
                           {/* Botão de Deletar Thread */}
                           <button
                             onClick={(e) => {
@@ -455,7 +495,7 @@ export default function WorkspaceEditor({
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={handleClearChat}
@@ -470,18 +510,16 @@ export default function WorkspaceEditor({
                 {/* Histórico de Mensagens */}
                 <div className="flex-grow overflow-y-auto p-4 space-y-4">
                   {messages.map((msg: Message) => (
-                    <div 
-                      key={msg.id} 
-                      className={`flex flex-col max-w-[85%] ${
-                        msg.sender === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'
-                      }`}
-                    >
-                      <div 
-                        className={`rounded-xl px-4 py-3 text-sm leading-relaxed shadow-md whitespace-pre-wrap ${
-                          msg.sender === 'user' 
-                            ? 'bg-indigo-600 text-white rounded-br-none' 
-                            : 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-bl-none'
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col max-w-[85%] ${msg.sender === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'
                         }`}
+                    >
+                      <div
+                        className={`rounded-xl px-4 py-3 text-sm leading-relaxed shadow-md whitespace-pre-wrap ${msg.sender === 'user'
+                          ? 'bg-indigo-600 text-white rounded-br-none'
+                          : 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-bl-none'
+                          }`}
                       >
                         {msg.text}
 
@@ -530,7 +568,7 @@ export default function WorkspaceEditor({
                       </span>
                     </div>
                   ))}
-                  
+
                   {isProcessing && (
                     <div className="flex flex-col w-full mr-auto items-start gap-2">
                       <div className="rounded-xl px-4 py-3 bg-slate-800/60 border border-slate-700/50 text-slate-450 text-sm rounded-bl-none flex items-center gap-2">
@@ -547,8 +585,8 @@ export default function WorkspaceEditor({
                 </div>
 
                 {/* Form Input do Chat */}
-                <div className="p-4 border-t border-slate-900 bg-slate-900 shrink-0">
-                  <form 
+                <div className="p-4 pb-24 md:pb-4 border-t border-slate-900 bg-slate-900 shrink-0">
+                  <form
                     onSubmit={(e) => {
                       e.preventDefault()
                       handleSendMessage(inputText)
@@ -657,25 +695,26 @@ export default function WorkspaceEditor({
         </div>
 
         {/* Right Side: Preview & Code (Toggled in same area) + Bottom logs */}
-        <div className="flex-grow flex flex-col bg-slate-950 overflow-hidden relative">
-          
+        <div className={`
+          ${activeMobileView !== 'chat' ? 'flex' : 'hidden md:flex'}
+          flex-grow flex flex-col bg-slate-950 overflow-hidden relative
+        `}>
+
           {/* Header Toggle tabs */}
           <div className="flex items-center justify-between bg-slate-950 border-b border-slate-900 text-xs shrink-0 select-none pr-4">
             <div className="flex">
-              <button 
-                onClick={() => setActiveRightTab('preview')}
-                className={`py-3 px-6 font-bold text-center transition-all flex items-center gap-1.5 border-b-2 cursor-pointer ${
-                  activeRightTab === 'preview' ? 'border-indigo-500 text-white bg-slate-900/20' : 'border-transparent text-slate-450 hover:text-slate-200'
-                }`}
+              <button
+                onClick={() => { setActiveRightTab('preview'); setActiveMobileView('preview'); }}
+                className={`py-3 px-6 font-bold text-center transition-all flex items-center gap-1.5 border-b-2 cursor-pointer ${activeRightTab === 'preview' ? 'border-indigo-500 text-white bg-slate-900/20' : 'border-transparent text-slate-450 hover:text-slate-200'
+                  }`}
               >
                 <Laptop className="w-3.5 h-3.5 text-indigo-400" />
                 Visualização (Preview)
               </button>
-              <button 
-                onClick={() => setActiveRightTab('code')}
-                className={`py-3 px-6 font-bold text-center transition-all flex items-center gap-1.5 border-b-2 cursor-pointer ${
-                  activeRightTab === 'code' ? 'border-indigo-500 text-white bg-slate-900/20' : 'border-transparent text-slate-450 hover:text-slate-200'
-                }`}
+              <button
+                onClick={() => { setActiveRightTab('code'); setActiveMobileView('code'); }}
+                className={`py-3 px-6 font-bold text-center transition-all flex items-center gap-1.5 border-b-2 cursor-pointer ${activeRightTab === 'code' ? 'border-indigo-500 text-white bg-slate-900/20' : 'border-transparent text-slate-450 hover:text-slate-200'
+                  }`}
               >
                 <FileCode className="w-3.5 h-3.5 text-indigo-400" />
                 Código Fonte
@@ -715,11 +754,11 @@ export default function WorkspaceEditor({
                           : 'Servidor desligado'}
                     </span>
                   </div>
-                  
+
                   {activeWorkspace.status === 'running' && (
-                    <a 
-                      href={activeWorkspace.preview_url || undefined} 
-                      target="_blank" 
+                    <a
+                      href={activeWorkspace.preview_url || undefined}
+                      target="_blank"
                       rel="noreferrer"
                       className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
                       title="Abrir em Nova Aba"
@@ -727,7 +766,7 @@ export default function WorkspaceEditor({
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   )}
-                  
+
                   <button
                     onClick={reloadPreview}
                     className="flex items-center gap-1 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-355 font-bold border border-slate-700 rounded px-2.5 py-1 transition-colors cursor-pointer"
@@ -745,27 +784,24 @@ export default function WorkspaceEditor({
 
                 {/* Screen Toggles */}
                 <div className="flex items-center gap-1.5 bg-slate-950/50 p-1 rounded-md border border-slate-900">
-                  <button 
+                  <button
                     onClick={() => setPreviewMode('desktop')}
-                    className={`p-1.5 rounded transition-colors cursor-pointer ${
-                      previewMode === 'desktop' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    className={`p-1.5 rounded transition-colors cursor-pointer ${previewMode === 'desktop' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
                   >
                     <Laptop className="w-3.5 h-3.5" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => setPreviewMode('tablet')}
-                    className={`p-1.5 rounded transition-colors cursor-pointer ${
-                      previewMode === 'tablet' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    className={`p-1.5 rounded transition-colors cursor-pointer ${previewMode === 'tablet' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
                   >
                     <Tablet className="w-3.5 h-3.5" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => setPreviewMode('mobile')}
-                    className={`p-1.5 rounded transition-colors cursor-pointer ${
-                      previewMode === 'mobile' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    className={`p-1.5 rounded transition-colors cursor-pointer ${previewMode === 'mobile' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
                   >
                     <Smartphone className="w-3.5 h-3.5" />
                   </button>
@@ -776,12 +812,11 @@ export default function WorkspaceEditor({
               <div className="flex-grow flex items-center justify-center p-6 bg-slate-950 relative overflow-hidden">
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-25"></div>
 
-                <div 
-                  className={`bg-slate-950 border border-slate-900 shadow-2xl rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full z-10 ${
-                    previewMode === 'desktop' ? 'w-full' :
+                <div
+                  className={`bg-slate-950 border border-slate-900 shadow-2xl rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full z-10 ${previewMode === 'desktop' ? 'w-full' :
                     previewMode === 'tablet' ? 'w-[768px]' :
-                    'w-[375px] max-w-full'
-                  }`}
+                      'w-[375px] max-w-full'
+                    }`}
                 >
                   <iframe
                     key={reloadKey}
@@ -849,7 +884,10 @@ export default function WorkspaceEditor({
           {activeRightTab === 'code' && (
             <div className="flex-grow flex overflow-hidden">
               {/* Árvore de arquivos recursiva */}
-              <div className="w-[28%] min-w-[150px] border-r border-slate-900 flex flex-col overflow-hidden bg-slate-950/30">
+              <div className={`
+                ${openFile ? 'hidden md:flex' : 'flex'}
+                w-full md:w-[28%] md:min-w-[150px] border-r border-slate-900 flex flex-col overflow-hidden bg-slate-950/30
+              `}>
                 <div className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-950/40 border-b border-slate-900 text-[11px] text-slate-400 shrink-0 select-none">
                   <FolderTree className="w-3.5 h-3.5 text-indigo-400" />
                   <span>Arquivos do Projeto</span>
@@ -865,9 +903,20 @@ export default function WorkspaceEditor({
               </div>
 
               {/* Conteúdo do arquivo selecionado */}
-              <div className="flex-grow flex flex-col overflow-hidden">
+              <div className={`
+                ${!openFile ? 'hidden md:flex' : 'flex'}
+                flex-grow flex flex-col overflow-hidden
+              `}>
                 <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-950/40 border-b border-slate-900 text-[11px] shrink-0 select-none">
                   <span className="flex items-center gap-1.5 min-w-0">
+                    {/* Back arrow on mobile to show file tree */}
+                    <button
+                      onClick={() => setOpenFile(null)}
+                      className="md:hidden p-1 mr-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                      title="Voltar para arquivos"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
                     <FileCode className="w-3 h-3 text-slate-400 shrink-0" />
                     <span className="font-mono text-slate-300 truncate">{openFile?.path || 'Selecione um arquivo'}</span>
                   </span>
@@ -912,7 +961,7 @@ export default function WorkspaceEditor({
                     <pre className="whitespace-pre">{openFile ? openFile.content : 'Nenhum arquivo aberto.'}</pre>
                   </div>
                 )}
-                <div className="p-3 bg-slate-900 border-t border-slate-900 text-[11px] text-slate-450 flex items-center justify-between shrink-0 select-none">
+                <div className="p-3 pb-20 md:pb-3 bg-slate-900 border-t border-slate-900 text-[11px] text-slate-450 flex items-center justify-between shrink-0 select-none">
                   <span className="flex items-center gap-1">
                     <HardDrive className="w-3 h-3 text-slate-500" />
                     Raiz no disco
@@ -926,12 +975,12 @@ export default function WorkspaceEditor({
           )}
 
           {/* Bottom Drawer: Logs & Terminal */}
-          <div 
-            className="border-t border-slate-900 bg-slate-950 shrink-0 z-30 flex flex-col transition-all duration-300" 
+          <div
+            className="border-t border-slate-900 bg-slate-950 shrink-0 z-30 flex flex-col transition-all duration-300"
             style={{ height: isTerminalExpanded ? '230px' : '36px' }}
           >
             {/* Header */}
-            <div 
+            <div
               onClick={() => setIsTerminalExpanded(!isTerminalExpanded)}
               className="flex items-center justify-between px-6 py-2 bg-slate-900/40 border-b border-slate-950 text-xs font-semibold cursor-pointer hover:bg-slate-900/60 transition-colors shrink-0 select-none"
             >
@@ -963,9 +1012,8 @@ export default function WorkspaceEditor({
                       terminalLogs.map((log: any, idx: number) => (
                         <div key={idx} className="flex gap-2 items-start">
                           <span className="text-slate-600">[{log.timestamp}]</span>
-                          <span className={`px-1 py-0.2 rounded text-[8px] font-extrabold uppercase ${
-                            log.source === 'laravel' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                          }`}>
+                          <span className={`px-1 py-0.2 rounded text-[8px] font-extrabold uppercase ${log.source === 'laravel' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                            }`}>
                             {log.source}
                           </span>
                           <span className={log.type === 'error' ? 'text-rose-400' : log.type === 'success' ? 'text-emerald-400' : 'text-slate-400'}>
@@ -981,7 +1029,7 @@ export default function WorkspaceEditor({
                 <div className="w-[50%] flex flex-col overflow-hidden">
                   <div className="px-4 py-1.5 bg-slate-900/10 border-b border-slate-900/40 text-[10px] text-slate-500 uppercase tracking-wider font-bold select-none flex justify-between items-center">
                     <span>Console do Contêiner Docker ({stackLabel(activeWorkspace)})</span>
-                    <button 
+                    <button
                       onClick={fetchDockerLogs}
                       className="text-[9px] text-indigo-400 hover:text-indigo-300 font-mono cursor-pointer"
                     >
@@ -996,6 +1044,34 @@ export default function WorkspaceEditor({
             )}
           </div>
         </div>
+      </div>
+
+      {/* Floating bottom tab bar on mobile */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-800 rounded-full py-2 px-3.5 shadow-2xl flex items-center gap-3 backdrop-blur z-30 md:hidden">
+        <button
+          onClick={() => selectMobileView('chat')}
+          className={`px-4 py-2 rounded-full text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${activeMobileView === 'chat' ? 'bg-indigo-600 text-white bg-opacity-100' : 'text-slate-400 hover:text-white'
+            }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          Chat
+        </button>
+        <button
+          onClick={() => selectMobileView('preview')}
+          className={`px-4 py-2 rounded-full text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${activeMobileView === 'preview' ? 'bg-indigo-600 text-white bg-opacity-100' : 'text-slate-400 hover:text-white'
+            }`}
+        >
+          <Laptop className="w-3.5 h-3.5" />
+          Preview
+        </button>
+        <button
+          onClick={() => selectMobileView('code')}
+          className={`px-4 py-2 rounded-full text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${activeMobileView === 'code' ? 'bg-indigo-600 text-white bg-opacity-100' : 'text-slate-400 hover:text-white'
+            }`}
+        >
+          <FileCode className="w-3.5 h-3.5" />
+          Código
+        </button>
       </div>
     </div>
   )

@@ -233,6 +233,11 @@ func runLLMModification(workspacePath, apiKey, model, prompt string, steps []str
 		"Your job is to modify files in the workspace directory to satisfy the user's prompt.\n" +
 		"The files in the workspace are:\n%s\n\n" +
 		"The user prompt is: \"%s\"\n\n" +
+		"IMPORTANT GUIDELINES FOR TAILWIND CSS:\n" +
+		"- If the workspace does NOT have a package.json file (meaning it is Go, PHP, Python, or a pure static HTML workspace without a Node.js build pipeline), you MUST NOT create tailwind.config.js, input.css, or output.css. Instead, import Tailwind CSS directly in the HTML <head> using the official Play CDN: <script src=\"https://cdn.tailwindcss.com\"></script>.\n" +
+		"- If the workspace HAS a package.json file (Node.js/Vite/React project), you must follow its package manager and build configuration, writing local components and styles accordingly.\n\n" +
+		"IMPORTANT GUIDELINES FOR TEMPLATES & HTML:\n" +
+		"- Never hardcode large HTML page strings directly inside code files like `.go` or `.py` using string/byte print statements. Instead, write/update a template file in a templates folder (such as templates/index.html) and load it from the code file. This keeps the code clean and prevents compile errors.\n\n" +
 		"You must output a JSON object with a single key \"operations\" which is an array of operations.\n" +
 		"An operation must have:\n" +
 		"- \"action\": \"write\" or \"delete\"\n" +
@@ -404,6 +409,13 @@ func runFallbackEngine(workspacePath, prompt string, steps []string) (string, []
 
 func updateWorkspaceFile(workspacePath, prompt string) error {
 	indexPath := filepath.Join(workspacePath, targetFile)
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		// Se index.html não existir na raiz, tenta procurar em templates/index.html
+		templatesPath := filepath.Join(workspacePath, "templates", "index.html")
+		if _, errTmpl := os.Stat(templatesPath); errTmpl == nil {
+			indexPath = templatesPath
+		}
+	}
 
 	// Ler o arquivo atual
 	data, err := os.ReadFile(indexPath)

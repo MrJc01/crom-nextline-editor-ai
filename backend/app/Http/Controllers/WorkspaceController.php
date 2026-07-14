@@ -207,6 +207,12 @@ class WorkspaceController extends Controller
             abort(404);
         }
 
+        if ($this->isHtmlFile($target)) {
+            $content = file_get_contents($target);
+            $content = $this->injectConsoleCaptureScript($content);
+            return response($content)->header('Content-Type', 'text/html');
+        }
+
         return response()->file($target);
     }
 
@@ -258,8 +264,15 @@ class WorkspaceController extends Controller
                     'body' => $request->getContent()
                 ]);
 
-                return response($response->getBody()->getContents(), $response->getStatusCode())
-                    ->header('Content-Type', $response->getHeaderLine('Content-Type'));
+                $body = $response->getBody()->getContents();
+                $contentType = $response->getHeaderLine('Content-Type');
+
+                if ($this->isHtmlFile($path ?? '', $contentType)) {
+                    $body = $this->injectConsoleCaptureScript($body);
+                }
+
+                return response($body, $response->getStatusCode())
+                    ->header('Content-Type', $contentType);
             } catch (\Exception $e) {
                 // Fallback para ler arquivos locais em caso de timeout
             }
@@ -278,6 +291,12 @@ class WorkspaceController extends Controller
         $target = realpath($root . '/' . ltrim($path, '/'));
         if (!$target || (!str_starts_with($target, $root . DIRECTORY_SEPARATOR) && $target !== $root) || !is_file($target)) {
             abort(404);
+        }
+
+        if ($this->isHtmlFile($target)) {
+            $content = file_get_contents($target);
+            $content = $this->injectConsoleCaptureScript($content);
+            return response($content)->header('Content-Type', 'text/html');
         }
 
         return response()->file($target);
@@ -336,5 +355,89 @@ class WorkspaceController extends Controller
         if ($user->role !== 'admin' && $workspace->user_id !== $user->id) {
             abort(403, 'Acesso não autorizado a este workspace.');
         }
+    }
+
+    /**
+     * Verifica se o arquivo é do tipo HTML com base no path ou content-type.
+     */
+    private function isHtmlFile(string $path, string $contentType = ''): bool
+    {
+        if (str_contains(strtolower($contentType), 'text/html')) {
+            return true;
+        }
+        return str_ends_with(strtolower($path), '.html') || str_ends_with(strtolower($path), '.htm');
+    }
+
+    /**
+     * Injeta script de captura de logs de console e erros JS no HTML.
+     */
+    private function injectConsoleCaptureScript(string $content): string
+    {
+        $script = <<<'HTML'
+
+<script>
+(function() {
+    // Escuta erros não tratados de JS
+    window.onerror = function(message, source, lineno, colno, error) {
+        window.parent.postMessage({
+            type: 'iframe-js-error',
+            message: message,
+            source: source ? source.split('/').pop() : '',
+            lineno: lineno,
+            colno: colno,
+            stack: error && error.stack ? error.stack : ''
+        }, '*');
+        return false;
+    };
+
+    // Escuta rejeições de Promises não tratadas
+    window.addEventListener('unhandledrejection', function(event) {
+        window.parent.postMessage({
+            type: 'iframe-js-error',
+            message: event.reason ? (event.reason.message || String(event.reason)) : 'Unhandled Promise Rejection',
+            source: 'Promise',
+            lineno: 0,
+            colno: 0,
+            stack: event.reason && event.reason.stack ? event.reason.stack : ''
+        }, '*');
+    });
+
+    // Intercepta console.error
+    var oldError = console.error;
+    console.error = function() {
+        var args = Array.prototype.slice.call(arguments);
+        window.parent.postMessage({
+            type: 'iframe-console-error',
+            message: args.map(function(arg) {
+                return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+            }).join(' ')
+        }, '*');
+        oldError.apply(console, arguments);
+    };
+
+    // Intercepta console.warn
+    var oldWarn = console.warn;
+    console.warn = function() {
+        var args = Array.prototype.slice.call(arguments);
+        window.parent.postMessage({
+            type: 'iframe-console-warn',
+            message: args.map(function(arg) {
+                return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+            }).join(' ')
+        }, '*');
+        oldWarn.apply(console, arguments);
+    };
+})();
+</script>
+HTML;
+
+        // Injeta antes de </head> ou no final do arquivo se não achar </head>
+        if (str_contains($content, '</head>')) {
+            return str_replace('</head>', $script . '</head>', $content);
+        }
+        if (str_contains($content, '<body>')) {
+            return str_replace('<body>', '<body>' . $script, $content);
+        }
+        return $content . $script;
     }
 }
