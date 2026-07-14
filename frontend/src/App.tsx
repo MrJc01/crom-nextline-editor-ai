@@ -8,8 +8,9 @@ import WorkspacesIndex from './pages/WorkspacesIndex'
 import WorkspaceEditor from './pages/WorkspaceEditor'
 import AdminDashboard from './pages/AdminDashboard'
 import UserSettings, { type UserPrefs } from './pages/UserSettings'
+import CreateWorkspace from './pages/CreateWorkspace'
 import { specialistSteps } from './components/SpecialistsPanel'
-import type { Workspace, Message, TerminalLog, FileNode, OpenFile } from './types'
+import type { Workspace, Message, ChatThread, TerminalLog, FileNode, OpenFile } from './types'
 import { fetchWithAuth } from './utils/api'
 
 const API_BASE = 'http://localhost:8000/api'
@@ -34,17 +35,36 @@ function welcomeMessage(): Message {
   }
 }
 
-function chatKey(workspaceId: string): string {
-  return `crom-chat-${workspaceId}`
+function threadsKey(workspaceId: string): string {
+  return `crom-threads-${workspaceId}`
 }
 
-function loadChat(workspaceId: string): Message[] {
+function loadThreads(workspaceId: string): ChatThread[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(chatKey(workspaceId)) || 'null')
-    return Array.isArray(saved) && saved.length ? saved : [welcomeMessage()]
-  } catch {
-    return [welcomeMessage()]
-  }
+    const savedThreads = JSON.parse(localStorage.getItem(threadsKey(workspaceId)) || 'null')
+    if (Array.isArray(savedThreads) && savedThreads.length) {
+      return savedThreads
+    }
+    
+    // Migração: se o chat legado existir, converte-o no primeiro thread
+    const legacyChat = JSON.parse(localStorage.getItem(`crom-chat-${workspaceId}`) || 'null')
+    if (Array.isArray(legacyChat) && legacyChat.length) {
+      const thread: ChatThread = {
+        id: 'legacy',
+        title: 'Histórico Anterior',
+        createdAt: new Date().toLocaleString(),
+        messages: legacyChat
+      }
+      return [thread]
+    }
+  } catch {}
+  
+  return [{
+    id: 'default',
+    title: 'Edição Inicial',
+    createdAt: new Date().toLocaleString(),
+    messages: [welcomeMessage()]
+  }]
 }
 
 // Sessão persistida para sobreviver a reloads (evita cair de volta no login).
@@ -80,8 +100,8 @@ export default function App() {
   const [allowedModels, setAllowedModels] = useState<string[]>([])
   const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.5-flash')
 
-  const [messages, setMessages] = useState<Message[]>([welcomeMessage()])
-  const [chatWorkspaceId, setChatWorkspaceId] = useState<string | null>(null)
+  const [threads, setThreads] = useState<ChatThread[]>([])
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [inputText, setInputText] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
@@ -220,11 +240,15 @@ export default function App() {
 
   const reloadPreview = () => setReloadKey(k => k + 1)
 
-  // Limpa o histórico de chat do workspace ativo.
+  // Limpa o histórico de chat da conversa ativa.
   const handleClearChat = () => {
-    if (!activeWorkspace) return
-    setMessages([welcomeMessage()])
-    localStorage.removeItem(chatKey(activeWorkspace.id))
+    if (!activeWorkspace || !activeThreadId) return
+    setThreads(prev => prev.map(t => {
+      if (t.id === activeThreadId) {
+        return { ...t, messages: [welcomeMessage()] }
+      }
+      return t
+    }))
   }
 
   // Encontra o primeiro arquivo da árvore (prioriza index.html na raiz).
@@ -246,8 +270,13 @@ export default function App() {
     const found = workspaces.find((w: Workspace) => w.id === id)
     if (found) {
       setActiveWorkspace(found)
-      setMessages(loadChat(found.id))
-      setChatWorkspaceId(found.id)
+      const list = loadThreads(found.id)
+      setThreads(list)
+      if (list.length > 0) {
+        setActiveThreadId(list[0].id)
+      } else {
+        setActiveThreadId(null)
+      }
       syncWorkspaceFiles(found.id)
       addLog('laravel', 'info', `Workspace carregado para edição: ${found.name}`)
     } else {
@@ -256,20 +285,25 @@ export default function App() {
         const retryFound = list.find((w: Workspace) => w.id === id)
         if (retryFound) {
           setActiveWorkspace(retryFound)
-          setMessages(loadChat(retryFound.id))
-          setChatWorkspaceId(retryFound.id)
+          const retryList = loadThreads(retryFound.id)
+          setThreads(retryList)
+          if (retryList.length > 0) {
+            setActiveThreadId(retryList[0].id)
+          } else {
+            setActiveThreadId(null)
+          }
           syncWorkspaceFiles(retryFound.id)
         }
       })
     }
   }
 
-  // Persiste o histórico de chat do workspace ativo sempre que ele muda.
+  // Persiste a lista de threads do workspace ativo sempre que ela mudar.
   useEffect(() => {
-    if (activeWorkspace && chatWorkspaceId === activeWorkspace.id) {
-      localStorage.setItem(chatKey(activeWorkspace.id), JSON.stringify(messages))
+    if (activeWorkspace && threads.length > 0) {
+      localStorage.setItem(threadsKey(activeWorkspace.id), JSON.stringify(threads))
     }
-  }, [messages, activeWorkspace?.id, chatWorkspaceId])
+  }, [threads, activeWorkspace?.id])
 
   // Handle Create Workspace
   const handleCreateWorkspace = async (name: string, stack: string = 'static'): Promise<string | null> => {
@@ -353,10 +387,65 @@ export default function App() {
     }
   }
 
+  // Helper: atualiza as mensagens do thread ativo.
+  const pushToActiveThread = (msg: Message) => {
+    setThreads(prev => prev.map(t => {
+      if (t.id === activeThreadId) {
+        return { ...t, messages: [...t.messages, msg] }
+      }
+      return t
+    }))
+  }
+
+  // Helper: cria um novo thread de conversa.
+  const handleCreateThread = (title?: string) => {
+    const newThread: ChatThread = {
+      id: Date.now().toString(),
+      title: title || `Conversa ${threads.length + 1}`,
+      createdAt: new Date().toLocaleString(),
+      messages: [welcomeMessage()]
+    }
+    setThreads(prev => [newThread, ...prev])
+    setActiveThreadId(newThread.id)
+  }
+
+  // Helper: deleta um thread de conversa.
+  const handleDeleteThread = (threadId: string) => {
+    setThreads(prev => {
+      const filtered = prev.filter(t => t.id !== threadId)
+      if (activeThreadId === threadId) {
+        setActiveThreadId(filtered.length > 0 ? filtered[0].id : null)
+      }
+      return filtered
+    })
+  }
+
   // Handle Send Message (Prompt to Laravel -> Go CLI -> Crom Agente)
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isProcessing) return
     if (!activeWorkspace) return
+
+    // Se não há thread ativo, cria um automaticamente com o título do prompt
+    if (!activeThreadId) {
+      const newThread: ChatThread = {
+        id: Date.now().toString(),
+        title: text.substring(0, 40),
+        createdAt: new Date().toLocaleString(),
+        messages: [welcomeMessage()]
+      }
+      setThreads(prev => [newThread, ...prev])
+      setActiveThreadId(newThread.id)
+      // Aguarda o próximo ciclo de render para que o state atualize
+      await new Promise(r => setTimeout(r, 50))
+    }
+
+    // Atualiza o título do thread se for o primeiro prompt do usuário
+    setThreads(prev => prev.map(t => {
+      if (t.id === activeThreadId && (t.title === 'Edição Inicial' || t.title.startsWith('Conversa '))) {
+        return { ...t, title: text.substring(0, 40) }
+      }
+      return t
+    }))
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -364,7 +453,7 @@ export default function App() {
       text: text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
-    setMessages(prev => [...prev, userMsg])
+    pushToActiveThread(userMsg)
     setInputText('')
     setIsProcessing(true)
     setAgentStatus('analyzing')
@@ -408,22 +497,22 @@ export default function App() {
           setClientPoints(data.client_points)
         }
         
-        setMessages(prev => [...prev, {
+        pushToActiveThread({
           id: (Date.now() + 1).toString(),
           sender: 'ai',
           text: data.message,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           // Passos dos especialistas (MoA) + passos técnicos do backend.
           steps: [...specialists, ...(data.steps || [])]
-        }])
+        })
         setAgentStatus('done')
       } else {
-        setMessages(prev => [...prev, {
+        pushToActiveThread({
           id: (Date.now() + 1).toString(),
           sender: 'ai',
           text: `Erro: ${data.message || 'Falha de processamento'}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }])
+        })
         setAgentStatus('idle')
       }
     } catch (err) {
@@ -523,7 +612,6 @@ export default function App() {
                   workspaces={workspaces}
                   handleStartDocker={handleStartDocker}
                   handleStopDocker={handleStopDocker}
-                  handleCreateWorkspace={handleCreateWorkspace}
                 />
               ) : (
                 <Login onLoginSuccess={handleLoginSuccess} />
@@ -531,12 +619,26 @@ export default function App() {
             } 
           />
           <Route 
+            path="/workspace/create" 
+            element={
+              isAuthenticated ? (
+                <CreateWorkspace handleCreateWorkspace={handleCreateWorkspace} />
+              ) : (
+                <Login onLoginSuccess={handleLoginSuccess} />
+              )
+            }
+          />
+          <Route 
             path="/workspace/:id" 
             element={
               isAuthenticated ? (
                 <WorkspaceEditor 
                   activeWorkspace={activeWorkspace}
-                  messages={messages}
+                  threads={threads}
+                  activeThreadId={activeThreadId}
+                  setActiveThreadId={setActiveThreadId}
+                  handleCreateThread={handleCreateThread}
+                  handleDeleteThread={handleDeleteThread}
                   inputText={inputText}
                   setInputText={setInputText}
                   isProcessing={isProcessing}

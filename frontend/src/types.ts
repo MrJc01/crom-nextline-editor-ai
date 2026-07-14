@@ -25,6 +25,13 @@ export interface Message {
   steps?: string[]
 }
 
+export interface ChatThread {
+  id: string
+  title: string
+  createdAt: string
+  messages: Message[]
+}
+
 export interface TerminalLog {
   timestamp: string
   source: 'laravel' | 'go' | 'crom-agent'

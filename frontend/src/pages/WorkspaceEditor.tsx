@@ -29,11 +29,15 @@ import {
 import FileTree from '../components/FileTree'
 import SpecialistsPanel from '../components/SpecialistsPanel'
 import { fetchWithAuth } from '../utils/api'
-import type { Workspace, Message, FileNode, OpenFile } from '../types'
+import type { Workspace, Message, ChatThread, FileNode, OpenFile } from '../types'
 
 interface WorkspaceEditorProps {
   activeWorkspace: Workspace | null
-  messages: Message[]
+  threads: ChatThread[]
+  activeThreadId: string | null
+  setActiveThreadId: (id: string | null) => void
+  handleCreateThread: (title?: string) => void
+  handleDeleteThread: (threadId: string) => void
   inputText: string
   setInputText: (val: string) => void
   isProcessing: boolean
@@ -94,7 +98,11 @@ function StatusBadge({ status }: { status: Workspace['status'] }) {
 
 export default function WorkspaceEditor({
   activeWorkspace,
-  messages,
+  threads,
+  activeThreadId,
+  setActiveThreadId,
+  handleCreateThread,
+  handleDeleteThread,
   inputText,
   setInputText,
   isProcessing,
@@ -130,6 +138,14 @@ export default function WorkspaceEditor({
   const [activeRightTab, setActiveRightTab] = useState<'preview' | 'code'>('preview')
   const [isTerminalExpanded, setIsTerminalExpanded] = useState(false)
   const [dockerLogs, setDockerLogs] = useState<string>('')
+
+  // Multi-thread views state
+  const [chatView, setChatView] = useState<'list' | 'chat'>('list')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Derive active thread messages
+  const activeThread = threads.find(t => t.id === activeThreadId)
+  const messages = activeThread ? activeThread.messages : []
 
   // Último pedido do usuário, para contextualizar o painel de especialistas.
   const lastUserPrompt = [...messages].reverse().find(m => m.sender === 'user')?.text ?? ''
@@ -286,165 +302,251 @@ export default function WorkspaceEditor({
 
           {/* TAB CONTENT: CHAT */}
           {activeLeftTab === 'chat' && (
-            <>
-              <div className="flex items-center justify-between px-4 py-2 border-b border-slate-900 bg-slate-950/20 shrink-0">
-                <span className="text-[10px] text-slate-500 flex items-center gap-1.5 font-semibold">
-                  <MessageSquare className="w-3 h-3 text-indigo-400/70" />
-                  Conversa salva deste workspace
-                </span>
-                <button
-                  onClick={handleClearChat}
-                  className="flex items-center gap-1 text-[10px] text-slate-550 hover:text-rose-400 transition-colors cursor-pointer"
-                >
-                  <Trash2 className="w-3 h-3" /> Limpar
-                </button>
-              </div>
+            chatView === 'list' ? (
+              // VISTA 1: Lista de Chats e Conversas
+              <div className="flex-grow flex flex-col overflow-hidden">
+                {/* Header da Lista com Pesquisa e Nova Conversa */}
+                <div className="p-4 border-b border-slate-900 bg-slate-950/20 shrink-0 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-slate-400 font-semibold tracking-wider uppercase flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                      Conversas ({threads.length})
+                    </span>
+                    <button
+                      onClick={() => {
+                        handleCreateThread()
+                        setChatView('chat')
+                      }}
+                      className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-3 py-1.5 rounded-lg transition-all shadow-md cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" /> Nova Conversa
+                    </button>
+                  </div>
+                  
+                  {/* Campo de Busca */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Pesquisar conversa..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-all"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-355 cursor-pointer bg-transparent border-none"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-              <div className="flex-grow overflow-y-auto p-4 space-y-4">
-                {messages.map((msg: Message) => (
-                  <div 
-                    key={msg.id} 
-                    className={`flex flex-col max-w-[85%] ${
-                      msg.sender === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'
-                    }`}
-                  >
+                {/* Lista de Conversas */}
+                <div className="flex-grow overflow-y-auto p-3 space-y-2 select-none">
+                  {threads.filter(t => 
+                    t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    t.messages.some(m => m.text.toLowerCase().includes(searchQuery.toLowerCase()))
+                  ).length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-slate-500 text-xs text-center space-y-2">
+                      <MessageSquare className="w-8 h-8 text-slate-600 opacity-60" />
+                      <span>Nenhuma conversa encontrada</span>
+                    </div>
+                  ) : (
+                    threads.filter(t => 
+                      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      t.messages.some(m => m.text.toLowerCase().includes(searchQuery.toLowerCase()))
+                    ).map((thread) => {
+                      const isActive = thread.id === activeThreadId
+                      const lastMsg = thread.messages[thread.messages.length - 1]
+                      const snippet = lastMsg ? lastMsg.text : 'Sem mensagens'
+                      
+                      return (
+                        <div
+                          key={thread.id}
+                          onClick={() => {
+                            setActiveThreadId(thread.id)
+                            setChatView('chat')
+                          }}
+                          className={`group flex items-start justify-between p-3 rounded-lg border cursor-pointer transition-all ${
+                            isActive
+                              ? 'bg-indigo-650/15 border-indigo-500/50 text-white shadow-sm'
+                              : 'bg-slate-900/25 border-slate-800 hover:bg-slate-900/55 hover:border-slate-700/60 text-slate-300'
+                          }`}
+                        >
+                          <div className="flex-grow min-w-0 pr-2">
+                            <div className="flex items-center justify-between mb-1 gap-2">
+                              <span className="font-bold text-xs truncate group-hover:text-white transition-colors">
+                                {thread.title}
+                              </span>
+                              <span className="text-[9px] text-slate-500 font-medium shrink-0">
+                                {thread.createdAt ? thread.createdAt.split(' ')[0] : ''}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-450 truncate line-clamp-1">
+                              {snippet}
+                            </p>
+                          </div>
+                          
+                          {/* Botão de Deletar Thread */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteThread(thread.id)
+                            }}
+                            className="text-slate-550 hover:text-rose-450 p-1 rounded hover:bg-slate-800/60 opacity-0 group-hover:opacity-100 transition-all cursor-pointer shrink-0 border-none bg-transparent"
+                            title="Excluir conversa"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            ) : (
+              // VISTA 2: Chat Aberto (com botão de voltar)
+              <div className="flex-grow flex flex-col overflow-hidden">
+                {/* Header do Chat Aberto */}
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-900 bg-slate-950/20 shrink-0 gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      onClick={() => setChatView('list')}
+                      className="flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900/80 transition-all cursor-pointer shrink-0 border-none bg-transparent"
+                      title="Voltar para a lista"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-slate-200 truncate select-all">
+                        {activeThread?.title}
+                      </h4>
+                      <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider block mt-0.5">
+                        Histórico Ativo
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={handleClearChat}
+                      className="flex items-center gap-1 text-[10px] text-slate-450 hover:text-rose-455 font-semibold transition-colors cursor-pointer px-2 py-1 rounded bg-slate-950/30 hover:bg-slate-950/60 border border-slate-900"
+                      title="Limpar mensagens desta conversa"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Limpar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Histórico de Mensagens */}
+                <div className="flex-grow overflow-y-auto p-4 space-y-4">
+                  {messages.map((msg: Message) => (
                     <div 
-                      className={`rounded-xl px-4 py-3 text-sm leading-relaxed shadow-md whitespace-pre-wrap ${
-                        msg.sender === 'user' 
-                          ? 'bg-indigo-600 text-white rounded-br-none' 
-                          : 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-bl-none'
+                      key={msg.id} 
+                      className={`flex flex-col max-w-[85%] ${
+                        msg.sender === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'
                       }`}
                     >
-                      {msg.text}
+                      <div 
+                        className={`rounded-xl px-4 py-3 text-sm leading-relaxed shadow-md whitespace-pre-wrap ${
+                          msg.sender === 'user' 
+                            ? 'bg-indigo-600 text-white rounded-br-none' 
+                            : 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-bl-none'
+                        }`}
+                      >
+                        {msg.text}
 
-                      {msg.steps && (
-                        <div className="mt-3 pt-2.5 border-t border-slate-700/60 text-xs text-slate-400 space-y-2">
-                          <div className="font-semibold text-slate-350 flex items-center gap-1.5 mb-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                            Ações concluídas pelo agente:
-                          </div>
-                          {msg.steps.map((step, idx) => {
-                            const separatorIndex = step.indexOf(': ')
-                            const name = separatorIndex !== -1 ? step.substring(0, separatorIndex) : ''
-                            const desc = separatorIndex !== -1 ? step.substring(separatorIndex + 2) : step
-                            const isSpecialist = [
-                              'Arquiteto de Layout',
-                              'Especialista em UX/UI',
-                              'Engenheiro Frontend',
-                              'Revisor de Código',
-                              'Agregador Crom'
-                            ].includes(name)
+                        {msg.steps && (
+                          <div className="mt-3 pt-2.5 border-t border-slate-700/60 text-xs text-slate-400 space-y-2">
+                            <div className="font-semibold text-slate-350 flex items-center gap-1.5 mb-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                              Ações concluídas pelo agente:
+                            </div>
+                            {msg.steps.map((step, idx) => {
+                              const separatorIndex = step.indexOf(': ')
+                              const name = separatorIndex !== -1 ? step.substring(0, separatorIndex) : ''
+                              const desc = separatorIndex !== -1 ? step.substring(separatorIndex + 2) : step
+                              const isSpecialist = [
+                                'Arquiteto de Layout',
+                                'Especialista em UX/UI',
+                                'Engenheiro Frontend',
+                                'Revisor de Código',
+                                'Agregador Crom'
+                              ].includes(name)
 
-                            if (isSpecialist) {
-                              return (
-                                <div key={idx} className="bg-slate-900/40 border border-slate-700/30 rounded-lg p-2.5 my-1 space-y-1">
-                                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-400">
-                                    <span className="w-1 h-3 rounded-full bg-indigo-500"></span>
-                                    {name}
+                              if (isSpecialist) {
+                                return (
+                                  <div key={idx} className="bg-slate-900/40 border border-slate-700/30 rounded-lg p-2.5 my-1 space-y-1">
+                                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-400">
+                                      <span className="w-1 h-3 rounded-full bg-indigo-500"></span>
+                                      {name}
+                                    </div>
+                                    <p className="text-[11px] text-slate-300 leading-snug">{desc}</p>
                                   </div>
-                                  <p className="text-[11px] text-slate-300 leading-snug">{desc}</p>
+                                )
+                              }
+
+                              return (
+                                <div key={idx} className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono pl-1">
+                                  <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+                                  {step}
                                 </div>
                               )
-                            }
-
-                            // Outros passos técnicos (CLI Go, Docker, OpenRouter, etc.)
-                            return (
-                              <div key={idx} className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono pl-1">
-                                <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                                {step}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-slate-550 mt-1 px-1">
-                      {msg.timestamp}
-                    </span>
-                  </div>
-                ))}
-                
-                {isProcessing && (
-                  <div className="flex flex-col w-full mr-auto items-start gap-2">
-                    <div className="rounded-xl px-4 py-3 bg-slate-800/60 border border-slate-700/50 text-slate-450 text-sm rounded-bl-none flex items-center gap-2">
-                      <span className="flex gap-1 items-center">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]"></span>
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]"></span>
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"></span>
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-550 mt-1 px-1">
+                        {msg.timestamp}
                       </span>
-                      <span>Orquestrando especialistas...</span>
                     </div>
-                    <SpecialistsPanel active={isProcessing} prompt={lastUserPrompt} />
-                  </div>
-                )}
-              </div>
-
-              <div className="px-4 py-2 bg-slate-900/30 border-t border-slate-900 shrink-0">
-                <span className="text-[10px] font-bold text-slate-500 block mb-1.5 uppercase tracking-wider">Sugestões rápidas</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {['Adicionar contato', 'Mudar para tema claro', 'Adicionar depoimentos', 'Alterar título da Hero'].map((s, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSendMessage(s)}
-                      disabled={isProcessing}
-                      className="text-xs bg-slate-800/70 hover:bg-slate-700 text-slate-300 border border-slate-700/50 rounded-md py-1 px-2.5 transition-colors cursor-pointer text-left disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {s}
-                    </button>
                   ))}
-                </div>
-              </div>
-
-              <div className="p-4 border-t border-slate-900 bg-slate-900 shrink-0">
-                <div className="flex items-center gap-2 mb-2 px-1">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Modelo IA:</span>
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    disabled={isProcessing}
-                    className="bg-slate-950 border border-slate-800 text-[11px] text-slate-300 rounded px-2.5 py-0.5 outline-none focus:border-indigo-500 transition-colors"
-                  >
-                    {allowedModels.length > 0 ? (
-                      allowedModels.map(modelId => (
-                        <option key={modelId} value={modelId}>
-                          {modelId.split('/').pop()?.toUpperCase() || modelId}
-                        </option>
-                      ))
-                    ) : (
-                      <option value={selectedModel}>{selectedModel.split('/').pop()?.toUpperCase() || selectedModel}</option>
-                    )}
-                  </select>
+                  
+                  {isProcessing && (
+                    <div className="flex flex-col w-full mr-auto items-start gap-2">
+                      <div className="rounded-xl px-4 py-3 bg-slate-800/60 border border-slate-700/50 text-slate-450 text-sm rounded-bl-none flex items-center gap-2">
+                        <span className="flex gap-1 items-center">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]"></span>
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]"></span>
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"></span>
+                        </span>
+                        <span>Orquestrando especialistas...</span>
+                      </div>
+                      <SpecialistsPanel active={isProcessing} prompt={lastUserPrompt} />
+                    </div>
+                  )}
                 </div>
 
-                <form 
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    handleSendMessage(inputText)
-                  }}
-                  className="flex items-center gap-2 bg-slate-950 border border-slate-900 rounded-lg px-3 py-2 focus-within:border-indigo-500/80 transition-all shadow-inner"
-                >
-                  <input
-                    type="text"
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    disabled={isProcessing}
-                    placeholder="Pedir alteração (ex: 'Adicionar seção de contato')..."
-                    className="flex-grow bg-transparent border-none outline-none text-sm text-slate-200 placeholder-slate-500 disabled:opacity-50"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!inputText.trim() || isProcessing}
-                    className="h-8 w-8 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-colors disabled:bg-slate-800 disabled:text-slate-650 disabled:cursor-not-allowed cursor-pointer"
+                {/* Form Input do Chat */}
+                <div className="p-4 border-t border-slate-900 bg-slate-900 shrink-0">
+                  <form 
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      handleSendMessage(inputText)
+                    }}
+                    className="flex items-center gap-2 bg-slate-950 border border-slate-900 rounded-lg px-3 py-2 focus-within:border-indigo-500/80 transition-all shadow-inner"
                   >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </form>
-                <div className="mt-2 flex items-center justify-between text-[10px] text-slate-550 px-1">
-                  <span>Modificações enviadas ao Laravel local</span>
-                  <span>vias de CLI Go</span>
+                    <input
+                      type="text"
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      disabled={isProcessing}
+                      placeholder="Pedir alteração (ex: 'Adicionar seção de contato')..."
+                      className="flex-grow bg-transparent border-none outline-none text-sm text-slate-200 placeholder-slate-500 disabled:opacity-50"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!inputText.trim() || isProcessing}
+                      className="h-8 w-8 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-colors disabled:bg-slate-800 disabled:text-slate-650 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </form>
                 </div>
               </div>
-            </>
+            )
           )}
 
           {/* TAB CONTENT: SETTINGS */}
@@ -475,6 +577,29 @@ export default function WorkspaceEditor({
                   <div className="text-xs text-slate-400 font-mono bg-slate-950 border border-slate-900 rounded-lg p-2.5">
                     {stackLabel(activeWorkspace)}
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    Modelo de Inteligência Artificial (LLM)
+                  </label>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    disabled={isProcessing}
+                    className="w-full bg-slate-950 border border-slate-900 text-xs text-slate-200 rounded-lg p-2.5 outline-none focus:border-indigo-500 transition-colors"
+                  >
+                    {allowedModels.length > 0 ? (
+                      allowedModels.map(modelId => (
+                        <option key={modelId} value={modelId}>
+                          {modelId.split('/').pop()?.toUpperCase() || modelId}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={selectedModel}>{selectedModel.split('/').pop()?.toUpperCase() || selectedModel}</option>
+                    )}
+                  </select>
                 </div>
 
                 <div>

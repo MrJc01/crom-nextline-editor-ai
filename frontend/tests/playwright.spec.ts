@@ -31,15 +31,20 @@ test.describe('Crom Nextline Editor AI - Painel do Cliente', () => {
     await expect(page).toHaveURL(/\/workspace\/22222222-2222-2222-2222-222222222222/)
     await expect(page.locator('header h3')).toContainText('Landing Page de Academia')
 
-    // 8. Verificar que a aba do chat de comando está visível
+    // 8. Selecionar a conversa padrão "Edição Inicial" para abrir o chat
+    const defaultThread = page.locator('text=Edição Inicial')
+    await expect(defaultThread).toBeVisible()
+    await defaultThread.click()
+
+    // 9. Verificar que o input do chat de comando está visível
     const chatInput = page.locator('input[placeholder*="Pedir alteração"]')
     await expect(chatInput).toBeVisible()
 
-    // 9. Simular envio de mensagem no chat
+    // 10. Simular envio de mensagem no chat
     await chatInput.fill('Adicione uma tabela de preços')
     await page.locator('form button[type="submit"]').click()
 
-    // 10. Navegar para a página "Sobre" usando o menu lateral
+    // 11. Navegar para a página "Sobre" usando o menu lateral
     const aboutLink = page.locator('aside a[title="Sobre a Plataforma"]')
     await expect(aboutLink).toBeVisible()
     await aboutLink.click()
