@@ -284,6 +284,50 @@ class WorkspaceController extends Controller
     }
 
     /**
+     * Download the workspace directory as a ZIP file.
+     */
+    public function download(Request $request, $id)
+    {
+        $workspace = Workspace::findOrFail($id);
+        $this->authorizeWorkspace($workspace, $request);
+
+        $root = realpath($workspace->localPath());
+        if (!$root || !is_dir($root)) {
+            abort(404, 'Diretório do workspace não encontrado.');
+        }
+
+        $zip = new \ZipArchive();
+        $zipFileName = tempnam(sys_get_temp_dir(), 'crom_ws_') . '.zip';
+
+        if ($zip->open($zipFileName, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            abort(500, 'Não foi possível criar o arquivo ZIP.');
+        }
+
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::LEAVES_ONLY
+        );
+
+        foreach ($files as $name => $file) {
+            if (!$file->isDir()) {
+                $filePath = $file->getRealPath();
+                $relativePath = substr($filePath, strlen($root) + 1);
+
+                // Ignora dependências pesadas e cache no zip
+                if (preg_match('/^(node_modules|vendor|\.git|dist|build|\.next)\b/', $relativePath)) {
+                    continue;
+                }
+
+                $zip->addFile($filePath, $relativePath);
+            }
+        }
+
+        $zip->close();
+
+        return response()->download($zipFileName, $workspace->slug . '.zip')->deleteFileAfterSend(true);
+    }
+
+    /**
      * Autoriza acesso ao workspace.
      */
     private function authorizeWorkspace(Workspace $workspace, Request $request)

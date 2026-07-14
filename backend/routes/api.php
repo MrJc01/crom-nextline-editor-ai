@@ -37,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/workspaces/{id}/start', [WorkspaceController::class, 'start'])->middleware('throttle:30,1');
     Route::post('/workspaces/{id}/stop', [WorkspaceController::class, 'stop']);
     Route::post('/workspaces/{id}/restart', [WorkspaceController::class, 'restart'])->middleware('throttle:30,1');
+    Route::get('/workspaces/{id}/download', [WorkspaceController::class, 'download']);
 
     // Admin configuration
     Route::get('/settings', [AdminController::class, 'getSettings']);

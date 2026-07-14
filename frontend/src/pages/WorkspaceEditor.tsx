@@ -25,6 +25,7 @@ import {
   X,
   Trash2,
   Settings,
+  Download,
 } from 'lucide-react'
 import FileTree from '../components/FileTree'
 import SpecialistsPanel from '../components/SpecialistsPanel'
@@ -132,6 +133,7 @@ export default function WorkspaceEditor({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   // Local tabs state
   const [activeLeftTab, setActiveLeftTab] = useState<'chat' | 'settings'>('chat')
@@ -169,6 +171,31 @@ export default function WorkspaceEditor({
     const ok = await handleSaveFile(openFile.path, draft)
     setSaving(false)
     if (ok) setEditing(false)
+  }
+
+  const handleDownloadZip = async () => {
+    if (!activeWorkspace) return
+    setDownloading(true)
+    try {
+      const response = await fetchWithAuth(`/workspaces/${activeWorkspace.id}/download`)
+      if (!response.ok) {
+        throw new Error('Falha ao baixar o arquivo ZIP.')
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${activeWorkspace.slug || 'workspace'}.zip`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error(err)
+      alert('Erro ao baixar o arquivo ZIP do workspace.')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   const fetchDockerLogs = async () => {
@@ -633,24 +660,40 @@ export default function WorkspaceEditor({
         <div className="flex-grow flex flex-col bg-slate-950 overflow-hidden relative">
           
           {/* Header Toggle tabs */}
-          <div className="flex bg-slate-950 border-b border-slate-900 text-xs shrink-0 select-none">
-            <button 
-              onClick={() => setActiveRightTab('preview')}
-              className={`py-3 px-6 font-bold text-center transition-all flex items-center gap-1.5 border-b-2 cursor-pointer ${
-                activeRightTab === 'preview' ? 'border-indigo-500 text-white bg-slate-900/20' : 'border-transparent text-slate-450 hover:text-slate-200'
-              }`}
+          <div className="flex items-center justify-between bg-slate-950 border-b border-slate-900 text-xs shrink-0 select-none pr-4">
+            <div className="flex">
+              <button 
+                onClick={() => setActiveRightTab('preview')}
+                className={`py-3 px-6 font-bold text-center transition-all flex items-center gap-1.5 border-b-2 cursor-pointer ${
+                  activeRightTab === 'preview' ? 'border-indigo-500 text-white bg-slate-900/20' : 'border-transparent text-slate-450 hover:text-slate-200'
+                }`}
+              >
+                <Laptop className="w-3.5 h-3.5 text-indigo-400" />
+                Visualização (Preview)
+              </button>
+              <button 
+                onClick={() => setActiveRightTab('code')}
+                className={`py-3 px-6 font-bold text-center transition-all flex items-center gap-1.5 border-b-2 cursor-pointer ${
+                  activeRightTab === 'code' ? 'border-indigo-500 text-white bg-slate-900/20' : 'border-transparent text-slate-450 hover:text-slate-200'
+                }`}
+              >
+                <FileCode className="w-3.5 h-3.5 text-indigo-400" />
+                Código Fonte
+              </button>
+            </div>
+
+            <button
+              onClick={handleDownloadZip}
+              disabled={downloading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-850 hover:text-indigo-400 border border-slate-800 text-[10px] text-slate-355 font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              title="Baixar todos os arquivos como arquivo ZIP"
             >
-              <Laptop className="w-3.5 h-3.5 text-indigo-400" />
-              Visualização (Preview)
-            </button>
-            <button 
-              onClick={() => setActiveRightTab('code')}
-              className={`py-3 px-6 font-bold text-center transition-all flex items-center gap-1.5 border-b-2 cursor-pointer ${
-                activeRightTab === 'code' ? 'border-indigo-500 text-white bg-slate-900/20' : 'border-transparent text-slate-450 hover:text-slate-200'
-              }`}
-            >
-              <FileCode className="w-3.5 h-3.5 text-indigo-400" />
-              Código Fonte
+              {downloading ? (
+                <Loader2 className="w-3.5 h-3.5 text-indigo-450 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5 text-indigo-400" />
+              )}
+              {downloading ? 'Baixando...' : 'Baixar ZIP'}
             </button>
           </div>
 

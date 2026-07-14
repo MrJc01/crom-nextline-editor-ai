@@ -3,7 +3,7 @@ import { Sparkles, Database, Info } from 'lucide-react'
 
 export default function About() {
   return (
-    <div className="flex-grow max-w-4xl mx-auto px-6 py-16 space-y-12">
+    <div className="flex-grow max-w-4xl mx-auto px-6 py-16 space-y-12 overflow-y-auto w-full h-full">
       <div className="space-y-4">
         <h2 className="text-3xl font-extrabold text-white flex items-center gap-2">
           <Info className="w-8 h-8 text-indigo-400" /> Sobre o Crom Nextline
@@ -16,19 +16,19 @@ export default function About() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-slate-900 pt-10">
         <div className="space-y-4">
           <h3 className="text-lg font-bold text-indigo-400 flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4" /> Inteligência Soberana
+            <Sparkles className="w-4 h-4" /> Inteligência e Runtimes
           </h3>
           <p className="text-xs text-slate-455 leading-relaxed">
-            Ao contrário de editores web tradicionais que expõem os dados do seu código para provedores SaaS centralizados, o Crom utiliza o ecossistema local do <strong>Crom Agente</strong>. Isso garante privacidade absoluta e controle total sobre seu ambiente.
+            Ao contrário de editores web tradicionais limitados a layouts estáticos, o Crom Nextline detecta dinamicamente a stack do seu projeto e sobe ambientes complexos (Node/Vite, PHP/Laravel, Python, Go) usando IA local assistida.
           </p>
         </div>
 
         <div className="space-y-4">
           <h3 className="text-lg font-bold text-purple-400 flex items-center gap-1.5">
-            <Database className="w-4 h-4" /> Infraestrutura Multi-Tenant
+            <Database className="w-4 h-4" /> Sandbox e Proteção
           </h3>
           <p className="text-xs text-slate-455 leading-relaxed">
-            O backend Laravel gerencia o mapeamento físico e lógico do Docker Socket host (`docker.sock`). Ao criar um novo projeto, a plataforma aloca uma porta dinâmica e inicializa um servidor web Nginx autônomo, fornecendo acesso exclusivo de preview para o cliente.
+            O backend gerencia o mapeamento físico do Docker Socket host (`docker.sock`) aplicando limites rigorosos de memória (512MB), CPU e PIDs. O ambiente é blindado contra Path Traversal e validado ativamente por 55+ pentests automatizados.
           </p>
         </div>
       </div>
@@ -36,10 +36,10 @@ export default function About() {
       <div className="bg-slate-900/30 border border-slate-900 p-6 rounded-xl space-y-4">
         <h3 className="text-sm font-bold text-white uppercase tracking-wider">A Stack Tecnológica</h3>
         <ul className="text-xs text-slate-400 space-y-2">
-          <li><strong>Frontend:</strong> React, TypeScript, Tailwind CSS v4, Lucide React e React Router.</li>
-          <li><strong>Backend:</strong> Laravel 11 estruturado puramente como API Gateway de microsserviços.</li>
-          <li><strong>CLI Bridge:</strong> Go Module (`crom-cli`) usando o pacote Gorilla WebSocket para comunicação com o Daemon local.</li>
-          <li><strong>Contêineres:</strong> Docker Compose, Dockerfiles otimizados e Nginx Alpine de provisionamento rápido.</li>
+          <li><strong>Frontend:</strong> React, TypeScript, Tailwind CSS, Lucide React e React Router.</li>
+          <li><strong>Backend:</strong> Laravel 11 estruturado como API Gateway seguro de microsserviços.</li>
+          <li><strong>CLI Bridge:</strong> Go Module (`crom-cli`) usando passagens seguras de argumentos em array estruturado.</li>
+          <li><strong>Contêineres:</strong> Docker Compose, Dockerfiles otimizados e imagens leves Alpine.</li>
         </ul>
       </div>
 

@@ -2,7 +2,8 @@ FROM php:8.4-cli-alpine
 
 # docker-cli: o backend precisa criar contêineres irmãos de preview (Docker-out-of-Docker)
 # através do socket montado. Sem este binário, o Process(['docker', ...]) do Laravel falha.
-RUN apk add --no-cache docker-cli
+RUN apk add --no-cache docker-cli libzip-dev \
+    && docker-php-ext-install zip
 
 WORKDIR /var/www/html
 

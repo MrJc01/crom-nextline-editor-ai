@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LayoutWrapper from './components/LayoutWrapper'
 import Home from './pages/Home'
@@ -96,6 +96,7 @@ export default function App() {
   }
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null)
+  const lastSavedWorkspaceIdRef = useRef<string | null>(null)
   const [clientPoints, setClientPoints] = useState<number>(500)
   const [allowedModels, setAllowedModels] = useState<string[]>([])
   const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.5-flash')
@@ -300,7 +301,15 @@ export default function App() {
 
   // Persiste a lista de threads do workspace ativo sempre que ela mudar.
   useEffect(() => {
-    if (activeWorkspace && threads.length > 0) {
+    if (!activeWorkspace) return
+
+    // Evita salvar os threads do workspace antigo no workspace novo durante transições de state
+    if (lastSavedWorkspaceIdRef.current !== activeWorkspace.id) {
+      lastSavedWorkspaceIdRef.current = activeWorkspace.id
+      return
+    }
+
+    if (threads.length > 0) {
       localStorage.setItem(threadsKey(activeWorkspace.id), JSON.stringify(threads))
     }
   }, [threads, activeWorkspace?.id])
