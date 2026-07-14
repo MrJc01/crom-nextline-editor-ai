@@ -65,6 +65,24 @@ Este documento apresenta o plano detalhado de implementação do **Crom Nextline
 
 ---
 
+### Etapa 5.5: Runtime Isolado e Detecção de Stack 🟢 (Núcleo Concluído)
+Reconstrução que transformou o preview de "somente Nginx estático" em multi-stack real. Plano completo (124 itens) no artefato **Manifesto de Build**.
+- [x] Corrigir a causa raiz do erro "Falha ao subir Docker": instalar `docker-cli` no [Dockerfile do backend](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/Dockerfile).
+- [x] Adicionar `HOST_PROJECT_PATH` ao `.env` do backend (caminho do host para os volumes `-v`).
+- [x] Serviço [StackDetector](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/app/Services/StackDetector.php): detecta Node, PHP/Laravel, Go, Python/Django/Flask e estático (+ override via `.crom-workspace.json`).
+- [x] Serviço [DockerService](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/app/Services/DockerService.php): start com a imagem detectada, health check, reconciliação de status, limites de recurso, stop e logs.
+- [x] Serviço [FileTreeService](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/app/Services/FileTreeService.php): árvore recursiva + leitura/escrita com proteção contra path traversal.
+- [x] Migration com colunas `stack`, `framework`, `internal_port`, `container_id`, `health`, `preview_url`, `last_error`.
+- [x] Novos endpoints: `/status`, `/logs`, `/file` (GET/PUT) e `/files` retornando árvore.
+- [x] Frontend: componente [FileTree](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/frontend/src/components/FileTree.tsx) recursivo, banner de servidor OFF/subindo/erro, badge de stack e preview dinâmico via `preview_url`.
+- [x] Testes do StackDetector (6 casos, verdes).
+- [ ] Rebuild da imagem `crom-backend` para persistir o `docker-cli` (hoje instalado de forma efêmera no contêiner em execução).
+- [ ] Mover workspaces de `frontend/public/` para `storage/app/` (isolamento real — Etapa E8 do plano).
+- [ ] Autenticação (Sanctum) e escopo por usuário nas rotas de workspace (E8).
+- [ ] Edição multi-arquivo real no `crom-cli` (hoje só faz find/replace em `index.html` — E10).
+
+---
+
 ### Etapa 6: Homologação e Testes de Integração 🟡 (50% Concluído)
 - [x] Validar que o build de produção do frontend compila 100% limpo.
 - [x] Testar execução local do binário Go atualizando os arquivos do site.

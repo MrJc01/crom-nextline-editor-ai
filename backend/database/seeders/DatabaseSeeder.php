@@ -15,11 +15,60 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        \App\Models\User::updateOrCreate(
+            ['email' => 'admin@crom.run'],
+            [
+                'name' => 'Administrador',
+                'password' => bcrypt('password'),
+                'role' => 'admin',
+            ]
+        );
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        $clientUser = \App\Models\User::updateOrCreate(
+            ['email' => 'client@crom.run'],
+            [
+                'name' => 'Cliente de Teste',
+                'password' => bcrypt('password'),
+                'role' => 'client',
+            ]
+        );
+
+        $hostRoot = env('HOST_PROJECT_PATH', '/home/j/Documentos/GitHub/crom-nextline-editor-ai');
+
+        \App\Models\Workspace::updateOrCreate(
+            ['id' => '22222222-2222-2222-2222-222222222222'],
+            [
+                'user_id' => $clientUser->id,
+                'name' => 'Landing Page de Academia',
+                'port' => 9002,
+                'status' => 'stopped',
+                'path' => $hostRoot . '/frontend/public/preview-site/workspaces/22222222-2222-2222-2222-222222222222',
+                'stack' => 'static',
+            ]
+        );
+
+        \App\Models\Workspace::updateOrCreate(
+            ['id' => '33333333-3333-3333-3333-333333333333'],
+            [
+                'user_id' => $clientUser->id,
+                'name' => 'E-Commerce de Calçados',
+                'port' => 9003,
+                'status' => 'stopped',
+                'path' => $hostRoot . '/frontend/public/preview-site/workspaces/33333333-3333-3333-3333-333333333333',
+                'stack' => 'static',
+            ]
+        );
+
+        \App\Models\Workspace::updateOrCreate(
+            ['id' => '44444444-4444-4444-4444-444444444444'],
+            [
+                'user_id' => $clientUser->id,
+                'name' => 'Portal de Eventos Tech',
+                'port' => 9004,
+                'status' => 'stopped',
+                'path' => $hostRoot . '/frontend/public/preview-site/workspaces/44444444-4444-4444-4444-444444444444',
+                'stack' => 'static',
+            ]
+        );
     }
 }

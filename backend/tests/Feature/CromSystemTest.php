@@ -17,8 +17,12 @@ class CromSystemTest extends TestCase
      */
     public function test_workspaces_index_returns_list()
     {
+        $user = \App\Models\User::factory()->create(['role' => 'client']);
+        \Laravel\Sanctum\Sanctum::actingAs($user);
+
         Workspace::create([
             'id' => '22222222-2222-2222-2222-222222222222',
+            'user_id' => $user->id,
             'name' => 'Meu Portal de Teste',
             'port' => 9005,
             'status' => 'stopped',
@@ -37,6 +41,9 @@ class CromSystemTest extends TestCase
      */
     public function test_create_workspace_persists_in_db()
     {
+        $user = \App\Models\User::factory()->create(['role' => 'client']);
+        \Laravel\Sanctum\Sanctum::actingAs($user);
+
         $response = $this->postJson('/api/workspaces', [
             'name' => 'Landing Page Alpha'
         ]);
@@ -45,7 +52,8 @@ class CromSystemTest extends TestCase
                  ->assertJsonPath('status', 'success');
 
         $this->assertDatabaseHas('workspaces', [
-            'name' => 'Landing Page Alpha'
+            'name' => 'Landing Page Alpha',
+            'user_id' => $user->id
         ]);
     }
 
@@ -54,6 +62,9 @@ class CromSystemTest extends TestCase
      */
     public function test_admin_settings_lifecycle()
     {
+        $user = \App\Models\User::factory()->create(['role' => 'admin']);
+        \Laravel\Sanctum\Sanctum::actingAs($user);
+
         // 1. Get default settings
         $response = $this->getJson('/api/settings');
         $response->assertStatus(200)
@@ -82,6 +93,9 @@ class CromSystemTest extends TestCase
      */
     public function test_client_points_management()
     {
+        $user = \App\Models\User::factory()->create(['role' => 'admin']);
+        \Laravel\Sanctum\Sanctum::actingAs($user);
+
         // Recuperar o cliente padrão semeado
         $client = Client::where('email', 'client@crom.run')->first();
 
@@ -109,6 +123,13 @@ class CromSystemTest extends TestCase
      */
     public function test_agent_command_blocks_when_insufficient_points()
     {
+        $user = \App\Models\User::factory()->create([
+            'name' => 'Cliente Pobre',
+            'email' => 'poor@crom.run',
+            'role' => 'client'
+        ]);
+        \Laravel\Sanctum\Sanctum::actingAs($user);
+
         // Criar cliente de teste pobre com e-mail único
         $client = Client::create([
             'id' => '33333333-3333-3333-3333-333333333333',

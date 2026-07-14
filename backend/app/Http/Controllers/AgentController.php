@@ -9,9 +9,14 @@ use Illuminate\Support\Facades\File;
 use App\Models\Workspace;
 use App\Models\Client;
 use App\Models\Setting;
+use App\Services\FileTreeService;
 
 class AgentController extends Controller
 {
+    public function __construct(private FileTreeService $tree)
+    {
+    }
+
     /**
      * Handle the AI command from the frontend chat.
      */
@@ -20,24 +25,45 @@ class AgentController extends Controller
         $request->validate([
             'prompt' => 'required|string',
             'workspace_id' => 'nullable|string',
-            'client_id' => 'nullable|string'
+            'client_id' => 'nullable|string',
+            'user_api_key' => 'nullable|string',
+            'model' => 'nullable|string',
         ]);
 
         $prompt = $request->input('prompt');
         $workspaceId = $request->input('workspace_id');
-        $clientId = $request->input('client_id') ?? '11111111-1111-1111-1111-111111111111';
+        $userApiKey = $request->input('user_api_key');
 
-        // Buscar cliente e saldo de pontos
-        $client = Client::firstOrCreate(
-            ['id' => $clientId],
-            ['name' => 'Cliente de Teste', 'email' => 'client@crom.run', 'points' => 500]
-        );
+        $user = $request->user();
+        $isAdmin = $user && $user->role === 'admin';
+
+        // Buscar cliente e saldo de pontos baseado no e-mail do usuário logado
+        if ($user) {
+            $client = Client::where('email', $user->email)->first();
+            if (!$client) {
+                $client = Client::create([
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'points' => 500,
+                ]);
+            }
+        } else {
+            $clientId = $request->input('client_id') ?? '11111111-1111-1111-1111-111111111111';
+            $client = Client::firstOrCreate(
+                ['id' => $clientId],
+                ['name' => 'Cliente de Teste', 'email' => 'client@crom.run', 'points' => 500]
+            );
+        }
 
         // Buscar custo da requisição nas configurações
         $cost = (int)(Setting::where('key', 'points_cost_per_request')->value('value') ?? 10);
-        $openRouterKey = Setting::where('key', 'openrouter_api_key')->value('value') ?? '';
+        $adminKey = Setting::where('key', 'openrouter_api_key')->value('value') ?? '';
 
-        if ($client->points < $cost) {
+        // Se o usuário trouxe a própria chave (BYO), não debita créditos da plataforma.
+        $usingOwnKey = !empty($userApiKey);
+        $effectiveKey = $usingOwnKey ? $userApiKey : $adminKey;
+
+        if (!$isAdmin && !$usingOwnKey && $client->points < $cost) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Saldo de pontos insuficiente para rodar o agente! Você possui apenas ' . $client->points . ' pontos de um custo de ' . $cost . '.',
@@ -58,18 +84,26 @@ class AgentController extends Controller
             ], 404);
         }
 
+        // Arquivo alvo opcional (default index.html no próprio CLI).
+        $targetFile = $request->input('file', 'index.html');
+
+        // Resolução do modelo de IA
+        $model = $request->input('model') ?? Setting::where('key', 'default_model')->value('value') ?? 'google/gemini-2.0-flash';
+
         // Instanciar o processo Symfony para rodar o binário Go CLI
         $process = new Process([
             $binaryPath,
             '--action=modify',
             '--prompt=' . $prompt,
-            '--workspace=' . $workspacePath
+            '--workspace=' . $workspacePath,
+            '--file=' . $targetFile,
+            '--model=' . $model,
         ]);
 
-        // Propagar chave OpenRouter configurada pelo admin
-        if (!empty($openRouterKey)) {
+        // Propagar a chave efetiva (própria do usuário ou a do admin)
+        if (!empty($effectiveKey)) {
             $process->setEnv([
-                'OPENROUTER_API_KEY' => $openRouterKey
+                'OPENROUTER_API_KEY' => $effectiveKey
             ]);
         }
 
@@ -97,17 +131,20 @@ class AgentController extends Controller
             ], 500);
         }
 
-        // Se deu sucesso, debitar pontos do cliente
+        // Se deu sucesso, debitar pontos do cliente (a menos que seja admin ou use a própria chave).
         if (isset($output['status']) && $output['status'] === 'success') {
-            $client->decrement('points', $cost);
+            if (!$isAdmin && !$usingOwnKey) {
+                $client->decrement('points', $cost);
+            }
             $output['client_points'] = $client->fresh()->points;
+            $output['billed'] = !$isAdmin && !$usingOwnKey;
         }
 
         return response()->json($output);
     }
 
     /**
-     * Get the code of files in the preview workspace.
+     * Retorna a árvore de arquivos completa do workspace.
      */
     public function getFiles(Request $request)
     {
@@ -121,23 +158,127 @@ class AgentController extends Controller
             ], 404);
         }
 
-        $indexPath = $workspacePath . '/index.html';
+        return response()->json([
+            'status' => 'success',
+            'tree' => $this->tree->tree($workspacePath),
+        ]);
+    }
 
-        if (!File::exists($indexPath)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Arquivo index.html não encontrado no workspace.'
-            ], 404);
+    /**
+     * Lê o conteúdo de um arquivo específico do workspace.
+     */
+    public function getFile(Request $request)
+    {
+        $request->validate([
+            'workspace_id' => 'required|string',
+            'path' => 'required|string',
+        ]);
+
+        $workspacePath = $this->getWorkspaceLocalPath($request->query('workspace_id'));
+        if (!$workspacePath) {
+            return response()->json(['status' => 'error', 'message' => 'Workspace inválido.'], 404);
         }
 
-        $htmlContent = File::get($indexPath);
+        $result = $this->tree->read($workspacePath, $request->query('path'));
+        if (!$result['ok']) {
+            return response()->json(['status' => 'error', 'message' => $result['error']], 422);
+        }
 
         return response()->json([
             'status' => 'success',
-            'files' => [
-                'index.html' => $htmlContent
-            ]
+            'path' => $request->query('path'),
+            'content' => $result['content'],
+            'lang' => $result['lang'],
         ]);
+    }
+
+    /**
+     * Salva a edição manual de um arquivo do workspace.
+     */
+    public function saveFile(Request $request)
+    {
+        $request->validate([
+            'workspace_id' => 'required|string',
+            'path' => 'required|string',
+            'content' => 'present|string',
+        ]);
+
+        $workspacePath = $this->getWorkspaceLocalPath($request->input('workspace_id'));
+        if (!$workspacePath) {
+            return response()->json(['status' => 'error', 'message' => 'Workspace inválido.'], 404);
+        }
+
+        $result = $this->tree->write($workspacePath, $request->input('path'), $request->input('content'));
+        if (!$result['ok']) {
+            return response()->json(['status' => 'error', 'message' => $result['error']], 422);
+        }
+
+        return response()->json(['status' => 'success', 'message' => 'Arquivo salvo.']);
+    }
+
+    /**
+     * Cria um arquivo ou pasta no workspace.
+     */
+    public function createEntry(Request $request)
+    {
+        $request->validate([
+            'workspace_id' => 'required|string',
+            'path' => 'required|string',
+            'type' => 'required|in:file,dir',
+        ]);
+
+        $workspacePath = $this->getWorkspaceLocalPath($request->input('workspace_id'));
+        if (!$workspacePath) {
+            return response()->json(['status' => 'error', 'message' => 'Workspace inválido.'], 404);
+        }
+
+        $result = $this->tree->create($workspacePath, $request->input('path'), $request->input('type') === 'dir');
+        return $result['ok']
+            ? response()->json(['status' => 'success', 'message' => 'Criado.'])
+            : response()->json(['status' => 'error', 'message' => $result['error']], 422);
+    }
+
+    /**
+     * Renomeia/move um arquivo ou pasta.
+     */
+    public function renameEntry(Request $request)
+    {
+        $request->validate([
+            'workspace_id' => 'required|string',
+            'from' => 'required|string',
+            'to' => 'required|string',
+        ]);
+
+        $workspacePath = $this->getWorkspaceLocalPath($request->input('workspace_id'));
+        if (!$workspacePath) {
+            return response()->json(['status' => 'error', 'message' => 'Workspace inválido.'], 404);
+        }
+
+        $result = $this->tree->rename($workspacePath, $request->input('from'), $request->input('to'));
+        return $result['ok']
+            ? response()->json(['status' => 'success', 'message' => 'Renomeado.'])
+            : response()->json(['status' => 'error', 'message' => $result['error']], 422);
+    }
+
+    /**
+     * Exclui um arquivo ou pasta.
+     */
+    public function deleteEntry(Request $request)
+    {
+        $request->validate([
+            'workspace_id' => 'required|string',
+            'path' => 'required|string',
+        ]);
+
+        $workspacePath = $this->getWorkspaceLocalPath($request->input('workspace_id'));
+        if (!$workspacePath) {
+            return response()->json(['status' => 'error', 'message' => 'Workspace inválido.'], 404);
+        }
+
+        $result = $this->tree->delete($workspacePath, $request->input('path'));
+        return $result['ok']
+            ? response()->json(['status' => 'success', 'message' => 'Excluído.'])
+            : response()->json(['status' => 'error', 'message' => $result['error']], 422);
     }
 
     /**
@@ -182,7 +323,7 @@ class AgentController extends Controller
     private function getWorkspaceLocalPath($workspaceId)
     {
         if (empty($workspaceId)) {
-            return base_path('../frontend/public/preview-site');
+            return null;
         }
 
         $workspace = Workspace::find($workspaceId);
@@ -190,6 +331,13 @@ class AgentController extends Controller
             return null;
         }
 
-        return base_path('../frontend/public/preview-site/workspaces/' . $workspace->id);
+        // Authorize: check ownership if user is logged in
+        $user = auth()->user();
+        if ($user && $user->role !== 'admin' && $workspace->user_id !== $user->id) {
+            abort(403, 'Acesso não autorizado a este workspace.');
+        }
+
+        // Resolve storage/ (novos) ou o local legado (antigos) automaticamente.
+        return $workspace->localPath();
     }
 }

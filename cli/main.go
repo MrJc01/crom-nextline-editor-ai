@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,17 +16,62 @@ import (
 )
 
 type CLIResponse struct {
-	Status  string   `json:"status"`
-	Message string   `json:"message"`
-	Steps   []string `json:"steps"`
+	Status       string   `json:"status"`
+	Message      string   `json:"message"`
+	Steps        []string `json:"steps"`
+	ChangedFiles []string `json:"changed_files,omitempty"`
+}
+
+// targetFile guarda o arquivo alvo da edição (default index.html), compartilhado
+// com o motor de fallback para permitir edição de qualquer arquivo do projeto.
+var targetFile = "index.html"
+
+// Estojos de estrutura de dados para OpenRouter
+type OpenRouterRequest struct {
+	Model          string              `json:"model"`
+	Messages       []OpenRouterMessage `json:"messages"`
+	ResponseFormat *OpenRouterFormat   `json:"response_format,omitempty"`
+}
+
+type OpenRouterMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type OpenRouterFormat struct {
+	Type string `json:"type"`
+}
+
+type OpenRouterResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+}
+
+type FileOperation struct {
+	Action  string `json:"action"`
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+type LLMOperations struct {
+	Operations []FileOperation `json:"operations"`
 }
 
 func main() {
 	action := flag.String("action", "modify", "Ação a executar (modify/reset)")
 	prompt := flag.String("prompt", "", "Prompt para IA")
 	workspace := flag.String("workspace", "", "Caminho do diretório do site preview")
+	file := flag.String("file", "index.html", "Arquivo alvo da edição, relativo ao workspace")
 	daemonAddr := flag.String("daemon", "localhost:17171", "Endereço do daemon Crom Agente")
+	model := flag.String("model", "google/gemini-2.0-flash", "Modelo de IA do OpenRouter")
 	flag.Parse()
+
+	if *file != "" {
+		targetFile = *file
+	}
 
 	if *workspace == "" {
 		// Tentar inferir o caminho do workspace se não fornecido
@@ -47,6 +94,9 @@ func main() {
 
 	var message string
 	var steps []string
+	var changedFiles []string
+
+	apiKey := os.Getenv("OPENROUTER_API_KEY")
 
 	if daemonOnline {
 		// Realizar a chamada de WebSocket real
@@ -55,23 +105,47 @@ func main() {
 		if err != nil {
 			// Em caso de erro, loga e usa o fallback
 			steps = append(steps, fmt.Sprintf("Erro no Daemon: %s. Utilizando motor de fallback local.", err.Error()))
-			message, steps = runFallbackEngine(*workspace, *prompt, steps)
+			if apiKey != "" {
+				var errLLM error
+				message, steps, changedFiles, errLLM = runLLMModification(*workspace, apiKey, *model, *prompt, steps)
+				if errLLM != nil {
+					steps = append(steps, fmt.Sprintf("Erro ao chamar LLM: %s. Fallback para simulador.", errLLM.Error()))
+					message, steps = runFallbackEngine(*workspace, *prompt, steps)
+					changedFiles = []string{targetFile}
+				}
+			} else {
+				message, steps = runFallbackEngine(*workspace, *prompt, steps)
+				changedFiles = []string{targetFile}
+			}
 		} else {
 			steps = append([]string{"Conectado ao daemon Crom Agente", "Tarefa executada via WebSocket"}, steps...)
 			// Atualiza o workspace (se o daemon não o fez diretamente)
 			_ = updateWorkspaceFile(*workspace, *prompt)
+			changedFiles = []string{targetFile}
 		}
 	} else {
-		// Daemon offline: Fallback local para testes e facilidade de demonstração
+		// Daemon offline: se houver API key, usa OpenRouter real, senão simulador
 		steps = append(steps, "Daemon Crom Agente offline (porta 17171)")
-		message, steps = runFallbackEngine(*workspace, *prompt, steps)
+		if apiKey != "" {
+			var errLLM error
+			message, steps, changedFiles, errLLM = runLLMModification(*workspace, apiKey, *model, *prompt, steps)
+			if errLLM != nil {
+				steps = append(steps, fmt.Sprintf("Erro ao chamar LLM: %s. Fallback para simulador.", errLLM.Error()))
+				message, steps = runFallbackEngine(*workspace, *prompt, steps)
+				changedFiles = []string{targetFile}
+			}
+		} else {
+			message, steps = runFallbackEngine(*workspace, *prompt, steps)
+			changedFiles = []string{targetFile}
+		}
 	}
 
 	// Imprimir resultado JSON final para o Laravel ler
 	resp := CLIResponse{
-		Status:  "success",
-		Message: message,
-		Steps:   steps,
+		Status:       "success",
+		Message:      message,
+		Steps:        steps,
+		ChangedFiles: changedFiles,
 	}
 
 	respJSON, _ := json.MarshalIndent(resp, "", "  ")
@@ -146,6 +220,164 @@ func runDaemonTask(addr, prompt string) (string, []string, error) {
 	return responseContent, steps, nil
 }
 
+func runLLMModification(workspacePath, apiKey, model, prompt string, steps []string) (string, []string, []string, error) {
+	steps = append(steps, "Escaneando arquivos do workspace")
+	filesText, err := scanWorkspaceFiles(workspacePath)
+	if err != nil {
+		return "", steps, nil, err
+	}
+
+	steps = append(steps, fmt.Sprintf("Chamando API do OpenRouter com o modelo %s", model))
+	
+	systemPrompt := fmt.Sprintf("You are an AI assistant inside Crom Nextline Editor.\n" +
+		"Your job is to modify files in the workspace directory to satisfy the user's prompt.\n" +
+		"The files in the workspace are:\n%s\n\n" +
+		"The user prompt is: \"%s\"\n\n" +
+		"You must output a JSON object with a single key \"operations\" which is an array of operations.\n" +
+		"An operation must have:\n" +
+		"- \"action\": \"write\" or \"delete\"\n" +
+		"- \"path\": relative path of the file to write or delete\n" +
+		"- \"content\": the complete new file content (required for \"write\")\n\n" +
+		"Return ONLY the raw JSON object. Do not include markdown code block formatting (no triple backticks json).", filesText, prompt)
+
+	reqBody := OpenRouterRequest{
+		Model: model,
+		Messages: []OpenRouterMessage{
+			{Role: "user", Content: systemPrompt},
+		},
+		ResponseFormat: &OpenRouterFormat{Type: "json_object"},
+	}
+
+	reqJSON, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", steps, nil, err
+	}
+
+	req, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(reqJSON))
+	if err != nil {
+		return "", steps, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("HTTP-Referer", "https://crom.run")
+	req.Header.Set("X-Title", "Crom Nextline Editor")
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", steps, nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", steps, nil, fmt.Errorf("API OpenRouter retornou status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var orResp OpenRouterResponse
+	if err := json.NewDecoder(resp.Body).Decode(&orResp); err != nil {
+		return "", steps, nil, err
+	}
+
+	if len(orResp.Choices) == 0 {
+		return "", steps, nil, fmt.Errorf("OpenRouter retornou resposta vazia")
+	}
+
+	rawJSON := orResp.Choices[0].Message.Content
+	// Strip markdown blocks if present
+	rawJSON = strings.TrimPrefix(rawJSON, "```json")
+	rawJSON = strings.TrimPrefix(rawJSON, "```")
+	rawJSON = strings.TrimSuffix(rawJSON, "```")
+	rawJSON = strings.TrimSpace(rawJSON)
+
+	var ops LLMOperations
+	if err := json.Unmarshal([]byte(rawJSON), &ops); err != nil {
+		return "", steps, nil, fmt.Errorf("falha ao decodificar JSON do LLM: %s. Resposta original: %s", err.Error(), rawJSON)
+	}
+
+	steps = append(steps, fmt.Sprintf("Recebido plano de modificação com %d operações", len(ops.Operations)))
+	
+	changedFiles, err := applyOperations(workspacePath, ops.Operations)
+	if err != nil {
+		return "", steps, nil, err
+	}
+
+	steps = append(steps, fmt.Sprintf("Sucesso ao aplicar %d operações de edição", len(changedFiles)))
+	
+	return fmt.Sprintf("IA modificou com sucesso os arquivos do workspace."), steps, changedFiles, nil
+}
+
+func scanWorkspaceFiles(root string) (string, error) {
+	var sb strings.Builder
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == ".git" || name == "node_modules" || name == "vendor" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(path))
+		isText := false
+		textExts := []string{".html", ".css", ".js", ".json", ".ts", ".tsx", ".php", ".py", ".go", ".md", ".txt"}
+		for _, e := range textExts {
+			if ext == e {
+				isText = true
+				break
+			}
+		}
+
+		if isText {
+			content, err := os.ReadFile(path)
+			if err == nil {
+				sb.WriteString(fmt.Sprintf("--- File: %s ---\n", rel))
+				sb.WriteString(string(content))
+				sb.WriteString("\n\n")
+			}
+		}
+		return nil
+	})
+	return sb.String(), err
+}
+
+func applyOperations(root string, ops []FileOperation) ([]string, error) {
+	var changed []string
+	for _, op := range ops {
+		cleanPath := filepath.Clean(op.Path)
+		if strings.HasPrefix(cleanPath, "..") || filepath.IsAbs(cleanPath) {
+			return nil, fmt.Errorf("caminho de arquivo inválido/inseguro: %s", op.Path)
+		}
+
+		target := filepath.Join(root, cleanPath)
+
+		if op.Action == "write" {
+			dir := filepath.Dir(target)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return nil, err
+			}
+			if err := os.WriteFile(target, []byte(op.Content), 0644); err != nil {
+				return nil, err
+			}
+			changed = append(changed, cleanPath)
+		} else if op.Action == "delete" {
+			if err := os.Remove(target); err == nil {
+				changed = append(changed, cleanPath)
+			}
+		}
+	}
+	return changed, nil
+}
+
 func runFallbackEngine(workspacePath, prompt string, steps []string) (string, []string) {
 	steps = append(steps, "Iniciando motor de modificação local")
 	err := updateWorkspaceFile(workspacePath, prompt)
@@ -161,8 +393,8 @@ func runFallbackEngine(workspacePath, prompt string, steps []string) (string, []
 }
 
 func updateWorkspaceFile(workspacePath, prompt string) error {
-	indexPath := filepath.Join(workspacePath, "index.html")
-	
+	indexPath := filepath.Join(workspacePath, targetFile)
+
 	// Ler o arquivo atual
 	data, err := os.ReadFile(indexPath)
 	if err != nil {

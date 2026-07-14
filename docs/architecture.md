@@ -39,3 +39,32 @@ graph TD
 - **Papel:**
   - O agente de código autônomo.
   - Lê o contexto dos arquivos do site de demonstração, cria o plano de edição, injeta/modifica os códigos fonte do site e salva o resultado final no disco.
+
+---
+
+## 🧠 Serviços de Domínio do Backend
+
+A partir da reconstrução do sistema de workspaces, a lógica que antes vivia solta nos controllers passa a residir em serviços dedicados:
+
+### `StackDetector` (`app/Services/StackDetector.php`)
+Inspeciona os arquivos de um workspace e decide qual runtime ele precisa (Node, PHP, Go, Python ou estático). Devolve um manifesto normalizado com imagem Docker, comando de instalação, comando de start e porta interna. Detalhes e tabela de regras em [stack-detection.md](./stack-detection.md).
+
+### `DockerService` (`app/Services/DockerService.php`)
+Encapsula todo o ciclo de vida do contêiner de preview:
+- **start** — usa a imagem e o comando vindos do `StackDetector` (não mais um `nginx:alpine` fixo), roda a instalação de dependências quando necessário, aloca porta no host, aplica limites de recurso e faz *health check* antes de marcar o workspace como `running`.
+- **status** — consulta `docker inspect` em tempo real e **reconcilia** o banco: se o contêiner morreu mas o banco dizia `running`, corrige para `stopped`/`error`.
+- **stop / restart** — opera pelo `container_id` persistido e captura o `stderr` real do Docker.
+- **logs** — expõe `docker logs` para a aba de Logs do frontend.
+
+### `FileTreeService` (`app/Services/FileTreeService.php`)
+Varre o diretório do workspace de forma recursiva (ignorando `node_modules`, `vendor`, `.git`, `dist`), retorna a árvore de arquivos e lê o conteúdo de um arquivo individual, com proteção contra *path traversal*.
+
+```mermaid
+graph LR
+    WC[WorkspaceController] --> SD[StackDetector]
+    WC --> DS[DockerService]
+    AC[AgentController] --> FT[FileTreeService]
+    SD -->|manifest| DS
+    DS -->|docker run/inspect| DK[(Docker Engine via socket)]
+    FT -->|árvore + conteúdo| Disk[(storage/app/workspaces)]
+```

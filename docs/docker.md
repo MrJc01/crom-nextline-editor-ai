@@ -49,6 +49,32 @@ services:
 
 ---
 
+## ⚠️ Requisito crítico: cliente Docker dentro do contêiner do backend
+
+O backend Laravel roda **dentro** de um contêiner e, ao mesmo tempo, precisa **criar contêineres irmãos** de preview (padrão *Docker-out-of-Docker*). Para isso, duas coisas precisam ser verdadeiras — e a ausência da segunda era a causa do erro "Falha ao subir Docker":
+
+1. O socket do host precisa estar montado no contêiner: `-v /var/run/docker.sock:/var/run/docker.sock` (já presente no compose).
+2. O **binário cliente `docker` precisa existir dentro do contêiner do backend**. A imagem `php:8.4-cli-alpine` não o traz, então o `new Process(['docker', 'run', ...])` do Laravel falhava com "command not found".
+
+O `backend/Dockerfile` passa a instalar o cliente:
+
+```dockerfile
+FROM php:8.4-cli-alpine
+RUN apk add --no-cache docker-cli
+# ... restante
+```
+
+### `HOST_PROJECT_PATH`
+Como o `docker run -v` executa no **host** (via socket), o caminho do volume precisa ser o caminho **no host**, não o caminho interno do contêiner. Defina no `.env` do backend:
+
+```env
+HOST_PROJECT_PATH=/caminho/absoluto/no/host/crom-nextline-editor-ai
+```
+
+Sem essa variável, o volume monta um diretório inexistente e o preview sobe vazio.
+
+---
+
 ## Como Rodar o Ambiente
 
 ### Requisitos

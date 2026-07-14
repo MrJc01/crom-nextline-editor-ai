@@ -58,3 +58,26 @@ npx vitest run
 ```bash
 go test -v
 ```
+
+---
+
+## 🎭 4. Testes de Integração de Interface (Playwright E2E)
+
+**Arquivo de Testes:** [playwright.spec.ts](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/frontend/tests/playwright.spec.ts)  
+**Objetivo:** Validar o fluxo ponta a ponta do cliente na interface gráfica do navegador real.
+
+### Cobertura:
+1. **Fluxo completo de navegação:**
+   - Acessa a tela de `/login`.
+   - Realiza login usando as credenciais do cliente corporativo (`client@crom.run`/`password`).
+   - Confirma redirecionamento automático para a listagem `/dashboard`.
+   - Verifica se os 3 workspaces dinâmicos semeados estão presentes na tela.
+   - Entra no Workspace "Landing Page de Academia" e valida o redirecionamento com URL amigável `/workspace/22222222-2222-2222-2222-222222222222`.
+   - Simula o envio de prompt para a IA via chat e confere a exibição dos logs e estado.
+   - Navega para a página "Sobre" e valida que a URL foi atualizada para `/sobre`.
+
+### Como Executar:
+```bash
+npx playwright test
+```
+

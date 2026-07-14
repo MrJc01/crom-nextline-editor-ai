@@ -18,13 +18,51 @@ class Workspace extends Model
         'id',
         'user_id',
         'name',
+        'stack',
+        'framework',
         'port',
+        'internal_port',
         'status',
+        'container_id',
+        'health',
+        'preview_url',
+        'last_error',
         'path',
+    ];
+
+    protected $casts = [
+        'port' => 'integer',
+        'internal_port' => 'integer',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Caminho do workspace acessível DENTRO do contêiner do backend.
+     *
+     * Atenção: a coluna `path` guarda o caminho NO HOST (usado nos volumes -v do
+     * docker run). Para ler arquivos aqui dentro do contêiner é preciso usar este
+     * caminho local.
+     *
+     * Isolamento: novos workspaces vivem em storage/app/workspaces (fora do alcance
+     * do Vite). Workspaces legados ainda em frontend/public continuam sendo resolvidos.
+     */
+    public function localPath(): string
+    {
+        $storage = storage_path('app/workspaces/' . $this->id);
+        if (is_dir($storage)) {
+            return $storage;
+        }
+        // Fallback para o local legado (workspaces criados antes do isolamento).
+        return base_path('../frontend/public/preview-site/workspaces/' . $this->id);
+    }
+
+    /** Diretório base (local) onde novos workspaces são criados. */
+    public static function storageBase(): string
+    {
+        return storage_path('app/workspaces');
     }
 }

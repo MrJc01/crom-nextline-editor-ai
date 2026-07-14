@@ -41,11 +41,22 @@ Isso permite que o Laravel execute comandos da CLI do Docker no host através do
    - Aloca uma porta livre no host (ex: a partir da porta `9001`).
 
 2. **Início do Preview (Start):**
-   - Laravel executa o comando para instanciar o servidor web para o projeto:
+   - O `StackDetector` inspeciona os arquivos e decide o runtime (Node, PHP, Go, Python ou estático) — ver [stack-detection.md](./stack-detection.md). **Não é mais um `nginx:alpine` fixo.**
+   - Para um site **estático**, o Nginx serve a pasta montada:
      ```bash
-     docker run -d --name crom_ws_{id} -p {host_port}:80 -v {absolute_path}:/usr/share/nginx/html:ro nginx:alpine
+     docker run -d --name crom_ws_{id} -p {host_port}:80 \
+       --memory 512m --cpus 1 --pids-limit 256 --label crom.workspace={id} \
+       -v {host_path}:/usr/share/nginx/html:ro nginx:alpine
      ```
-   - Altera o status do workspace no banco de dados para `running`.
+   - Para as **demais stacks**, o projeto é montado em `/app` e o contêiner roda instalação + start via shell (exemplo Node/Vite):
+     ```bash
+     docker run -d --name crom_ws_{id} -p {host_port}:5173 \
+       --memory 512m --cpus 1 --pids-limit 256 --label crom.workspace={id} \
+       -v {host_path}:/app -w /app node:22-alpine \
+       sh -c 'npm install && npm run dev -- --host 0.0.0.0 --port 5173'
+     ```
+   - Após um *grace period*, o `DockerService` confere via `docker inspect` se o contêiner sobreviveu ao boot antes de marcar `running`; se ele encerrou (ex: erro de instalação), o motivo é capturado em `last_error` e o status vira `error`.
+   - **Detecção usa o caminho local do contêiner** (`Workspace::localPath()`), enquanto o volume `-v` usa o caminho no host (coluna `path`). Ver [docker.md](./docker.md) sobre `HOST_PROJECT_PATH` e o `docker-cli` no contêiner do backend.
 
 3. **Modificação (Edição de Código):**
    - O usuário digita alterações no chat.
@@ -75,8 +86,14 @@ Armazena a relação de projetos cadastrados no sistema:
 | `user_id` | `ForeignKey` | ID do usuário dono do projeto. |
 | `name` | `String` | Nome do projeto (ex: "Meu Site de Pizza"). |
 | `port` | `Integer` | Porta exclusiva no host alocada para o preview (ex: `9001`). |
-| `status` | `Enum` (`running`, `stopped`) | Status de execução do contêiner Docker. |
-| `path` | `String` | Caminho absoluto da pasta do projeto. |
+| `status` | `Enum` (`stopped`, `starting`, `running`, `error`) | Status de execução, reconciliado com o Docker. |
+| `stack` / `framework` | `String` | Runtime detectado (ex: `node` / `vite`). |
+| `internal_port` | `Integer` | Porta em que o app escuta dentro do contêiner (mapeada para `port` no host). |
+| `container_id` | `String` | ID do contêiner em execução (usado para stop/inspect/logs). |
+| `health` | `String` | `starting` / `healthy` / `exited` / `unknown`. |
+| `preview_url` | `String` | URL do preview quando `running`. |
+| `last_error` | `Text` | Motivo da última falha ao subir (exibido na UI). |
+| `path` | `String` | Caminho absoluto da pasta do projeto **no host** (para os volumes `-v`). |
 | `created_at` / `updated_at` | `Timestamp` | Datas de criação e atualização. |
 
 ---

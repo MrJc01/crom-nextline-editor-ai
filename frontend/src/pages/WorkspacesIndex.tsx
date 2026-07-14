@@ -1,41 +1,46 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Play, Square, Folder, ExternalLink, ArrowRight, Laptop } from 'lucide-react'
-
-interface Workspace {
-  id: string
-  name: string
-  port: number
-  status: 'running' | 'stopped'
-  path: string
-  created_at: string
-}
+import { Plus, Play, Square, Folder, ExternalLink, ArrowRight, Layers } from 'lucide-react'
+import type { Workspace } from '../types'
 
 interface WorkspacesIndexProps {
   workspaces: Workspace[]
   handleStartDocker: (wsId: string) => void
   handleStopDocker: (wsId: string) => void
-  handleCreateWorkspace: (name: string) => Promise<string | null>
+  handleCreateWorkspace: (name: string, stack: string) => Promise<string | null>
 }
 
-export default function WorkspacesIndex({ 
-  workspaces, 
-  handleStartDocker, 
+const STACK_OPTIONS = [
+  { value: 'static', label: 'Estático', hint: 'HTML + Tailwind · Nginx' },
+  { value: 'node', label: 'Node', hint: 'Vite (JS)' },
+  { value: 'php', label: 'PHP', hint: 'PHP embutido' },
+  { value: 'go', label: 'Go', hint: 'net/http' },
+  { value: 'python', label: 'Python', hint: 'Flask' },
+]
+
+export default function WorkspacesIndex({
+  workspaces,
+  handleStartDocker,
   handleStopDocker,
   handleCreateWorkspace
 }: WorkspacesIndexProps) {
-  
+
   const navigate = useNavigate()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
+  const [newStack, setNewStack] = useState('static')
+  const [creating, setCreating] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newWorkspaceName.trim()) return
 
-    const newId = await handleCreateWorkspace(newWorkspaceName)
+    setCreating(true)
+    const newId = await handleCreateWorkspace(newWorkspaceName, newStack)
+    setCreating(false)
     if (newId) {
       setNewWorkspaceName('')
+      setNewStack('static')
       setIsCreateModalOpen(false)
       navigate(`/workspace/${newId}`)
     }
@@ -88,12 +93,16 @@ export default function WorkspacesIndex({
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-bold text-white text-sm truncate max-w-[170px]">{ws.name}</h3>
-                <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase shrink-0 ${
-                  ws.status === 'running' 
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                    : 'bg-slate-800 text-slate-450 border border-slate-755'
+                <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase shrink-0 border ${
+                  ws.status === 'running' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : ws.status === 'starting' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                    : ws.status === 'error' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                    : 'bg-slate-800 text-slate-450 border-slate-755'
                 }`}>
-                  {ws.status === 'running' ? 'Servidor ON' : 'Servidor OFF'}
+                  {ws.status === 'running' ? 'Servidor ON'
+                    : ws.status === 'starting' ? 'Subindo'
+                    : ws.status === 'error' ? 'Erro'
+                    : 'Servidor OFF'}
                 </span>
               </div>
               <p className="text-[10px] text-slate-500 font-mono truncate">{ws.id}</p>
@@ -132,8 +141,8 @@ export default function WorkspacesIndex({
             {/* Actions Footer */}
             <div className="flex items-center justify-between border-t border-slate-900/60 pt-4">
               <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                <Laptop className="w-3.5 h-3.5" />
-                Vite Fallback
+                <Layers className="w-3.5 h-3.5" />
+                {ws.framework ? `${ws.stack}·${ws.framework}` : (ws.stack || 'estático')}
               </span>
 
               <div className="flex gap-2">
@@ -170,8 +179,8 @@ export default function WorkspacesIndex({
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">Nome do Projeto</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newWorkspaceName}
                   onChange={(e) => setNewWorkspaceName(e.target.value)}
                   placeholder="Ex: Meu Portfólio, Site de Pizzaria"
@@ -180,19 +189,43 @@ export default function WorkspacesIndex({
                   className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 rounded px-3 py-2 text-sm text-white outline-none transition-colors"
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">Stack do projeto</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {STACK_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setNewStack(opt.value)}
+                      className={`text-left px-3 py-2 rounded-lg border transition-all cursor-pointer ${
+                        newStack === opt.value
+                          ? 'border-indigo-500 bg-indigo-500/10'
+                          : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold text-white">{opt.label}</span>
+                      <span className="block text-[10px] text-slate-500">{opt.hint}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1.5">O sistema detecta a stack pelos arquivos e sobe o contêiner certo automaticamente.</p>
+              </div>
+
               <div className="flex justify-end gap-2 text-xs font-semibold pt-2">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsCreateModalOpen(false)}
                   className="px-4 py-2 bg-slate-800 text-slate-355 hover:bg-slate-700 rounded transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="submit" 
-                  className="px-4 py-2 bg-indigo-650 hover:bg-indigo-600 text-white rounded transition-colors cursor-pointer"
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="px-4 py-2 bg-indigo-650 hover:bg-indigo-600 text-white rounded transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  Criar Projeto
+                  {creating ? 'Criando...' : 'Criar Projeto'}
                 </button>
               </div>
             </form>

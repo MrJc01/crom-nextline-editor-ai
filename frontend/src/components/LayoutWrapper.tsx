@@ -1,16 +1,17 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Info, Layout, LogOut, Lock, Sparkles, Settings, Coins } from 'lucide-react'
+import { Home, Info, Layout, LogOut, Lock, Sparkles, Settings, Coins, ShieldAlert } from 'lucide-react'
 
 interface LayoutWrapperProps {
   children: React.ReactNode
   isAuthenticated: boolean
+  userRole: 'admin' | 'client'
   handleLogout: () => void
   agentStatus: string
   clientPoints: number
 }
 
-export default function LayoutWrapper({ children, isAuthenticated, handleLogout, agentStatus, clientPoints }: LayoutWrapperProps) {
+export default function LayoutWrapper({ children, isAuthenticated, userRole, handleLogout, agentStatus, clientPoints }: LayoutWrapperProps) {
   const location = useLocation()
   
   return (
@@ -70,18 +71,33 @@ export default function LayoutWrapper({ children, isAuthenticated, handleLogout,
                 <span className="text-[8px] font-bold">Editor</span>
               </Link>
 
-              <Link 
-                to="/admin" 
-                title="Configurações de Admin"
+              <Link
+                to="/configuracoes"
+                title="Minhas Configurações"
                 className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
-                  location.pathname === '/admin' 
-                    ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30' 
+                  location.pathname === '/configuracoes'
+                    ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30'
                     : 'text-slate-500 hover:text-slate-355 hover:bg-slate-900'
                 }`}
               >
                 <Settings className="w-4.5 h-4.5" />
-                <span className="text-[8px] font-bold">Admin</span>
+                <span className="text-[8px] font-bold">Config</span>
               </Link>
+
+              {userRole === 'admin' && (
+                <Link
+                  to="/admin"
+                  title="Painel Administrativo"
+                  className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
+                    location.pathname === '/admin'
+                      ? 'bg-purple-600/15 text-purple-300 border border-purple-500/30'
+                      : 'text-slate-500 hover:text-slate-355 hover:bg-slate-900'
+                  }`}
+                >
+                  <ShieldAlert className="w-4.5 h-4.5" />
+                  <span className="text-[8px] font-bold">Admin</span>
+                </Link>
+              )}
             </>
           ) : (
             <Link 

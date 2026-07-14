@@ -8,6 +8,16 @@ Este documento descreve como o backend Laravel interage com o binário nativo es
 
 O wrapper de linha de comando em Go desempenha um papel crítico como uma ponte de alto desempenho entre o servidor web PHP (Laravel) e o agente autônomo.
 
+### Flags suportadas
+- `--action` — `modify` ou `reset`.
+- `--prompt` — a instrução do usuário.
+- `--workspace` — caminho do diretório do projeto.
+- `--file` — **arquivo alvo da edição, relativo ao workspace** (default `index.html`). Permite editar qualquer arquivo do projeto, não apenas a página inicial.
+- `--daemon` — endereço do daemon `crom-agente` (default `localhost:17171`).
+
+A resposta JSON inclui `changed_files`, a lista de arquivos efetivamente alterados, para o frontend recarregar o preview e destacar o que mudou.
+
+
 ### Principais Benefícios:
 1. **Performance:** Execução instantânea sem a sobrecarga de inicialização de processos pesados.
 2. **Tipagem Forte:** Integração nativa com o `crom-agente-sdk` (escrito em Go).

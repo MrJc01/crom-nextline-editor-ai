@@ -2,7 +2,11 @@
 
 O **Crom Nextline Editor AI** é uma plataforma de edição e prototipação de sites em tempo real guiada por IA local. Com uma interface split-screen dividida, você pode dar instruções a um agente inteligente via chat e visualizar o design e o código do site sendo modificados instantaneamente em um iframe.
 
+Cada projeto vive em um **workspace isolado** que sobe em seu próprio contêiner Docker. O sistema **detecta a stack** (Node, PHP, Go, Python ou site estático) a partir dos arquivos e sobe a imagem correta automaticamente — ver [docs/stack-detection.md](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/stack-detection.md).
+
 Este projeto faz parte do ecossistema de soberania digital **CROM** (incluindo `crom-agente` e `crom-agente-sdk`).
+
+> **Nota de setup:** o backend cria contêineres de preview via socket do Docker, então o contêiner do backend precisa do cliente `docker` (já no [Dockerfile](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/Dockerfile)) e da variável `HOST_PROJECT_PATH` no `.env` do backend. Detalhes em [docs/docker.md](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/docker.md).
 
 ---
 

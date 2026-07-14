@@ -10,6 +10,7 @@ import {
   Cpu,
   Check
 } from 'lucide-react'
+import { fetchWithAuth } from '../utils/api'
 
 interface Client {
   id: string
@@ -33,7 +34,6 @@ interface AIModel {
   provider: string
 }
 
-const API_BASE = 'http://localhost:8000/api'
 
 // Predefined OpenRouter models list
 const AVAILABLE_MODELS: AIModel[] = [
@@ -72,7 +72,7 @@ export default function AdminDashboard() {
     setIsLoading(true)
     try {
       // 1. Fetch settings
-      const settingsRes = await fetch(`${API_BASE}/settings`)
+      const settingsRes = await fetchWithAuth('/settings')
       const settingsData = await settingsRes.json()
       if (settingsData.status === 'success') {
         setApiKey(settingsData.settings.openrouter_api_key || '')
@@ -90,14 +90,14 @@ export default function AdminDashboard() {
       }
 
       // 2. Fetch clients
-      const clientsRes = await fetch(`${API_BASE}/clients`)
+      const clientsRes = await fetchWithAuth('/clients')
       const clientsData = await clientsRes.json()
       if (clientsData.status === 'success') {
         setClients(clientsData.clients)
       }
 
       // 3. Fetch workspaces
-      const workspacesRes = await fetch(`${API_BASE}/workspaces`)
+      const workspacesRes = await fetchWithAuth('/workspaces')
       const workspacesData = await workspacesRes.json()
       if (workspacesData.status === 'success') {
         setWorkspaces(workspacesData.workspaces)
@@ -117,7 +117,7 @@ export default function AdminDashboard() {
   const saveConfiguration = async (updatedFields: object) => {
     setIsLoading(true)
     try {
-      const response = await fetch(`${API_BASE}/settings`, {
+      const response = await fetchWithAuth('/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -160,7 +160,7 @@ export default function AdminDashboard() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/clients/${clientId}/points`, {
+      const response = await fetchWithAuth(`/clients/${clientId}/points`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ points: pointsAmount })

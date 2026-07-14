@@ -93,6 +93,20 @@ Abaixo estão os endpoints que o backend expõe para servir a aplicação React:
   }
   ```
 
+### 2b. Endpoints de Runtime e Arquivos (implementados)
+
+Além do fluxo de comando, o backend expõe as rotas que sustentam o editor e o ciclo de vida do preview:
+
+| Método | Rota | Descrição |
+| :--- | :--- | :--- |
+| `GET` | `/api/files?workspace_id=` | Árvore de arquivos recursiva do workspace. |
+| `GET` | `/api/file?workspace_id=&path=` | Conteúdo de um arquivo (com bloqueio de path traversal). |
+| `PUT` | `/api/file` | Salva edição manual de um arquivo. |
+| `GET` | `/api/workspaces/{id}/status` | Estado real do contêiner, reconciliado com o Docker. |
+| `GET` | `/api/workspaces/{id}/logs` | Logs do contêiner de preview (`docker logs`). |
+| `POST` | `/api/workspaces/{id}/start` | Detecta a stack e sobe o contêiner correto. |
+| `POST` | `/api/workspaces/{id}/stop` | Para e remove o contêiner. |
+
 ### 3. Canal de Eventos em Tempo Real (SSE)
 - **Rota:** `GET /api/events`
 - **Descrição:** Uma conexão persistente Server-Sent Events (SSE) para enviar alertas ao frontend, como a notificação de que o site foi editado e precisa ser recarregado:
