@@ -175,13 +175,13 @@ export default function WorkspaceEditor({
 
     const checkServer = async () => {
       if (!isMounted) return
-      
+
       const checkUrl = getIframeSrc()
       try {
         // Realiza um fetch no-cors para contornar restrições de CORS.
         // Falha com exceção de rede se a porta estiver fechada.
         await fetch(checkUrl, { method: 'GET', mode: 'no-cors', cache: 'no-store' })
-        
+
         if (isMounted) {
           setIsServerReady(true)
           reloadPreview() // Força a recarga imediata do iframe com o site atualizado
@@ -822,12 +822,7 @@ export default function WorkspaceEditor({
                     <RefreshCw className="w-3 h-3" /> Recarregar
                   </button>
 
-                  <button
-                    onClick={handleResetWorkspace}
-                    className="flex items-center gap-1 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-355 font-bold border border-slate-700 rounded px-2.5 py-1 transition-colors cursor-pointer"
-                  >
-                    <X className="w-3 h-3" /> Reset
-                  </button>
+
                 </div>
 
                 {/* Screen Toggles */}
