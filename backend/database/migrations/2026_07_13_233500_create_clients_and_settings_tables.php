@@ -43,7 +43,7 @@ return new class extends Migration
             [
                 'key' => 'allowed_models',
                 'value' => json_encode([
-                    'google/gemini-2.0-flash-001',
+                    'google/gemini-2.5-flash',
                     'meta-llama/llama-3.3-70b-instruct',
                     'deepseek/deepseek-chat'
                 ]),
@@ -52,7 +52,7 @@ return new class extends Migration
             ],
             [
                 'key' => 'default_model',
-                'value' => 'google/gemini-2.0-flash-001',
+                'value' => 'google/gemini-2.5-flash',
                 'created_at' => now(),
                 'updated_at' => now()
             ]

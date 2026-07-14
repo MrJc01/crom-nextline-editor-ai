@@ -89,7 +89,7 @@ class AgentController extends Controller
         $targetFile = $request->input('file', 'index.html');
 
         // Resolução do modelo de IA
-        $model = $request->input('model') ?? Setting::where('key', 'default_model')->value('value') ?? 'google/gemini-2.0-flash-001';
+        $model = $request->input('model') ?? Setting::where('key', 'default_model')->value('value') ?? 'google/gemini-2.5-flash';
 
         // Instanciar o processo Symfony para rodar o binário Go CLI
         $process = new Process([
@@ -140,12 +140,31 @@ class AgentController extends Controller
             $output['client_points'] = $client->fresh()->points;
             $output['billed'] = !$isAdmin && !$usingOwnKey;
 
-            // Reinicia o contêiner de preview de forma assíncrona se estiver rodando
-            // para aplicar as mudanças nos arquivos físicos e reconstruir se a stack mudou.
+            // Reinicia o contêiner de preview APENAS se a stack mudou ou dependências cruciais foram alteradas.
+            // Para edições simples de HTML/CSS/JS (estáticos ou dinâmicos), o volume do Docker reflete as alterações
+            // instantaneamente sem necessidade de reiniciar o contêiner.
             $workspace = Workspace::find($workspaceId);
             if ($workspace && $workspace->status === 'running') {
-                $this->docker->stop($workspace);
-                $this->docker->start($workspace->fresh());
+                $oldStack = $workspace->stack;
+                $manifest = app(\App\Services\StackDetector::class)->detect($workspace->localPath());
+                $newStack = $manifest['type'] ?? 'static';
+
+                $mustRestart = ($oldStack !== $newStack);
+
+                if (!$mustRestart && isset($output['changed_files']) && is_array($output['changed_files'])) {
+                    foreach ($output['changed_files'] as $file) {
+                        $base = basename($file);
+                        if (in_array($base, ['package.json', 'composer.json', 'requirements.txt', 'go.mod', 'package-lock.json'])) {
+                            $mustRestart = true;
+                            break;
+                        }
+                    }
+                }
+
+                if ($mustRestart) {
+                    $this->docker->stop($workspace);
+                    $this->docker->start($workspace->fresh());
+                }
             }
         }
 

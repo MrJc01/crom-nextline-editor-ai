@@ -1,20 +1,30 @@
 # Guia de Testes Automatizados
 
-Este documento descreve o funcionamento e a cobertura da suíte de 15 testes automatizados implementados no ecossistema do **Crom Nextline Editor AI** (5 no Backend, 5 no Frontend e 5 na CLI Go).
+Este documento descreve o funcionamento e a cobertura da suíte de 27 testes automatizados implementados no ecossistema do **Crom Nextline Editor AI** (17 no Backend, 5 no Frontend e 5 na CLI Go).
 
 ---
 
 ## 🧪 1. Testes do Backend (Laravel PHPUnit)
 
-**Arquivo de Testes:** [CromSystemTest.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/tests/Feature/CromSystemTest.php)  
-**Objetivo:** Validar o comportamento de APIs REST, persistência em banco de dados SQLite e lógica de bloqueio de créditos do cliente.
+**Arquivos de Testes:** [CromSystemTest.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/tests/Feature/CromSystemTest.php), [StackDetectorTest.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/tests/Feature/StackDetectorTest.php), [WorkspaceFilesTest.php](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/tests/Feature/WorkspaceFilesTest.php)  
+**Objetivo:** Validar o comportamento de APIs REST, persistência em banco de dados SQLite, lógica de créditos, segurança de arquivos e detecção automática de stacks Docker.
 
-### Cobertura (5 Testes):
+### Cobertura (17 Testes):
 1. **`test_workspaces_index_returns_list`:** Garante que a listagem de workspaces retorna uma resposta HTTP 200 contendo a estrutura JSON correta.
 2. **`test_create_workspace_persists_in_db`:** Valida que o endpoint de criação de projeto insere corretamente o registro no banco de dados e retorna o status HTTP 201.
 3. **`test_admin_settings_lifecycle`:** Testa se o administrador consegue buscar e salvar parâmetros globais (como chaves de API e custos) na tabela `settings`.
 4. **`test_client_points_management`:** Verifica a busca de saldos de pontos de clientes e se a inserção de novos créditos adiciona os pontos corretamente.
 5. **`test_agent_command_blocks_when_insufficient_points`:** Valida a regra de saldo de pontos no endpoint `/api/command`. Se o cliente tiver saldo menor que o custo por requisição, a chamada é bloqueada com HTTP 403.
+6. **`detects static site`:** Valida a classificação correta de sites estáticos baseados em Nginx.
+7. **`detects node vite with script port`:** Garante a leitura e classificação de projetos Node/Vite e mapeamento dinâmico de portas.
+8. **`detects laravel over plain php`:** Diferencia corretamente projetos PHP legados de frameworks Laravel modernos.
+9. **`detects go`:** Garante a detecção de módulos Go.
+10. **`detects django`:** Valida a estrutura de projetos Django/Python.
+11. **`override file wins`:** Confirma que o arquivo `.crom-workspace.json` tem prioridade máxima sobre o detector automático.
+12. **`returns recursive tree`:** Valida que o endpoint de arquivos monta a árvore completa em formato de árvore.
+13. **`reads file content`:** Testa a leitura segura de arquivos do projeto.
+14. **`blocks path traversal`:** Garante que o backend barra tentativas de ler arquivos fora do workspace (ex: `../../etc/passwd`).
+15. **`writes and creates and deletes`:** Cobertura de operações CRUD sobre os arquivos do workspace.
 
 ### Como Executar:
 ```bash

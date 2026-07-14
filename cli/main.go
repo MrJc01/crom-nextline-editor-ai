@@ -66,7 +66,7 @@ func main() {
 	workspace := flag.String("workspace", "", "Caminho do diretório do site preview")
 	file := flag.String("file", "index.html", "Arquivo alvo da edição, relativo ao workspace")
 	daemonAddr := flag.String("daemon", "localhost:17171", "Endereço do daemon Crom Agente")
-	model := flag.String("model", "google/gemini-2.0-flash-001", "Modelo de IA do OpenRouter")
+	model := flag.String("model", "google/gemini-2.5-flash", "Modelo de IA do OpenRouter")
 	flag.Parse()
 
 	if *file != "" {

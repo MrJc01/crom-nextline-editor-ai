@@ -78,7 +78,7 @@ export default function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null)
   const [clientPoints, setClientPoints] = useState<number>(500)
   const [allowedModels, setAllowedModels] = useState<string[]>([])
-  const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.0-flash-001')
+  const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.5-flash')
 
   const [messages, setMessages] = useState<Message[]>([welcomeMessage()])
   const [chatWorkspaceId, setChatWorkspaceId] = useState<string | null>(null)

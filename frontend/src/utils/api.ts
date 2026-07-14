@@ -23,10 +23,11 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
   })
 
   if (response.status === 401) {
+    const hadSession = localStorage.getItem('crom-session')
     localStorage.removeItem('crom-session')
     localStorage.removeItem('crom-token')
     // Trigger redirect to login by reloading if in authenticated state
-    if (localStorage.getItem('crom-session')) {
+    if (hadSession) {
       window.location.href = '/login'
     }
   }

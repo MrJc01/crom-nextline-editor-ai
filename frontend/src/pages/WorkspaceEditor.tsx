@@ -318,17 +318,43 @@ export default function WorkspaceEditor({
                       {msg.text}
 
                       {msg.steps && (
-                        <div className="mt-3 pt-2.5 border-t border-slate-700/60 text-xs text-slate-400 space-y-1.5">
-                          <div className="font-semibold text-slate-300 flex items-center gap-1 mb-1">
-                            <Sparkles className="w-3 h-3 text-indigo-400" />
+                        <div className="mt-3 pt-2.5 border-t border-slate-700/60 text-xs text-slate-400 space-y-2">
+                          <div className="font-semibold text-slate-350 flex items-center gap-1.5 mb-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
                             Ações concluídas pelo agente:
                           </div>
-                          {msg.steps.map((step, idx) => (
-                            <div key={idx} className="flex items-center gap-1.5 text-slate-300">
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                              {step}
-                            </div>
-                          ))}
+                          {msg.steps.map((step, idx) => {
+                            const separatorIndex = step.indexOf(': ')
+                            const name = separatorIndex !== -1 ? step.substring(0, separatorIndex) : ''
+                            const desc = separatorIndex !== -1 ? step.substring(separatorIndex + 2) : step
+                            const isSpecialist = [
+                              'Arquiteto de Layout',
+                              'Especialista em UX/UI',
+                              'Engenheiro Frontend',
+                              'Revisor de Código',
+                              'Agregador Crom'
+                            ].includes(name)
+
+                            if (isSpecialist) {
+                              return (
+                                <div key={idx} className="bg-slate-900/40 border border-slate-700/30 rounded-lg p-2.5 my-1 space-y-1">
+                                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-400">
+                                    <span className="w-1 h-3 rounded-full bg-indigo-500"></span>
+                                    {name}
+                                  </div>
+                                  <p className="text-[11px] text-slate-300 leading-snug">{desc}</p>
+                                </div>
+                              )
+                            }
+
+                            // Outros passos técnicos (CLI Go, Docker, OpenRouter, etc.)
+                            return (
+                              <div key={idx} className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono pl-1">
+                                <span className="w-1 h-1 rounded-full bg-slate-700"></span>
+                                {step}
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
                     </div>

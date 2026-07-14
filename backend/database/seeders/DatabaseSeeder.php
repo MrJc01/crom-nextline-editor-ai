@@ -34,8 +34,9 @@ class DatabaseSeeder extends Seeder
         );
 
         $hostRoot = env('HOST_PROJECT_PATH', '/home/j/Documentos/GitHub/crom-nextline-editor-ai');
+        $templates = new \App\Services\WorkspaceTemplates();
 
-        \App\Models\Workspace::updateOrCreate(
+        $ws1 = \App\Models\Workspace::updateOrCreate(
             ['id' => '22222222-2222-2222-2222-222222222222'],
             [
                 'user_id' => $clientUser->id,
@@ -46,8 +47,9 @@ class DatabaseSeeder extends Seeder
                 'stack' => 'static',
             ]
         );
+        $templates->scaffold($ws1->localPath(), 'static', $ws1->name);
 
-        \App\Models\Workspace::updateOrCreate(
+        $ws2 = \App\Models\Workspace::updateOrCreate(
             ['id' => '33333333-3333-3333-3333-333333333333'],
             [
                 'user_id' => $clientUser->id,
@@ -58,8 +60,9 @@ class DatabaseSeeder extends Seeder
                 'stack' => 'static',
             ]
         );
+        $templates->scaffold($ws2->localPath(), 'static', $ws2->name);
 
-        \App\Models\Workspace::updateOrCreate(
+        $ws3 = \App\Models\Workspace::updateOrCreate(
             ['id' => '44444444-4444-4444-4444-444444444444'],
             [
                 'user_id' => $clientUser->id,
@@ -70,5 +73,6 @@ class DatabaseSeeder extends Seeder
                 'stack' => 'static',
             ]
         );
+        $templates->scaffold($ws3->localPath(), 'static', $ws3->name);
     }
 }
