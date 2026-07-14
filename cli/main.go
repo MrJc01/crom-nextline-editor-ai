@@ -66,7 +66,7 @@ func main() {
 	workspace := flag.String("workspace", "", "Caminho do diretório do site preview")
 	file := flag.String("file", "index.html", "Arquivo alvo da edição, relativo ao workspace")
 	daemonAddr := flag.String("daemon", "localhost:17171", "Endereço do daemon Crom Agente")
-	model := flag.String("model", "google/gemini-2.0-flash", "Modelo de IA do OpenRouter")
+	model := flag.String("model", "google/gemini-2.0-flash-001", "Modelo de IA do OpenRouter")
 	flag.Parse()
 
 	if *file != "" {
@@ -436,6 +436,8 @@ func updateWorkspaceFile(workspacePath, prompt string) error {
 	} else if strings.Contains(lowerPrompt, "escuro") || strings.Contains(lowerPrompt, "dark") || strings.Contains(lowerPrompt, "preto") {
 		htmlContent = strings.ReplaceAll(htmlContent, "background-color: #0f172a;", "background-color: #030712;")
 		htmlContent = strings.ReplaceAll(htmlContent, "bg-slate-950/80", "bg-black/90")
+		htmlContent = strings.ReplaceAll(htmlContent, "background: #f8fafc;", "background: #0f172a;")
+		htmlContent = strings.ReplaceAll(htmlContent, "color: #0f172a;", "color: white;")
 	} else if strings.Contains(lowerPrompt, "claro") || strings.Contains(lowerPrompt, "light") {
 		htmlContent = strings.ReplaceAll(htmlContent, "background-color: #0f172a;", "background-color: #f8fafc;")
 		htmlContent = strings.ReplaceAll(htmlContent, "color: #f8fafc;", "color: #0f172a;")
@@ -443,6 +445,8 @@ func updateWorkspaceFile(workspacePath, prompt string) error {
 		htmlContent = strings.ReplaceAll(htmlContent, "text-slate-400", "text-slate-600")
 		htmlContent = strings.ReplaceAll(htmlContent, "bg-slate-900/50", "bg-white/70")
 		htmlContent = strings.ReplaceAll(htmlContent, "border-slate-800", "border-slate-200")
+		htmlContent = strings.ReplaceAll(htmlContent, "background: #0f172a;", "background: #f8fafc;")
+		htmlContent = strings.ReplaceAll(htmlContent, "color: white;", "color: #0f172a;")
 	} else if strings.Contains(lowerPrompt, "depoimento") || strings.Contains(lowerPrompt, "testimonial") {
 		if !strings.Contains(htmlContent, "<!-- Testimonials -->") {
 			testimonialsHTML := `<!-- Testimonials -->

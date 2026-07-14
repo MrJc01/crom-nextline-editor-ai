@@ -88,7 +88,7 @@ class AgentController extends Controller
         $targetFile = $request->input('file', 'index.html');
 
         // Resolução do modelo de IA
-        $model = $request->input('model') ?? Setting::where('key', 'default_model')->value('value') ?? 'google/gemini-2.0-flash';
+        $model = $request->input('model') ?? Setting::where('key', 'default_model')->value('value') ?? 'google/gemini-2.0-flash-001';
 
         // Instanciar o processo Symfony para rodar o binário Go CLI
         $process = new Process([

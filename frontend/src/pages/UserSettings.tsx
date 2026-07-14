@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { User, Coins, Palette, Boxes, KeyRound, Check, Shield } from 'lucide-react'
+import { User, Coins, Palette, Check, Shield } from 'lucide-react'
 
 interface UserSettingsProps {
   role: 'admin' | 'client'
@@ -10,17 +10,7 @@ interface UserSettingsProps {
 
 export interface UserPrefs {
   theme: 'dark' | 'light'
-  defaultStack: string
-  openrouterKey: string
 }
-
-const STACKS = [
-  { value: 'static', label: 'Estático' },
-  { value: 'node', label: 'Node' },
-  { value: 'php', label: 'PHP' },
-  { value: 'go', label: 'Go' },
-  { value: 'python', label: 'Python' },
-]
 
 export default function UserSettings({ role, clientPoints, prefs, setPrefs }: UserSettingsProps) {
   const [saved, setSaved] = useState(false)
@@ -84,37 +74,6 @@ export default function UserSettings({ role, clientPoints, prefs, setPrefs }: Us
             ))}
           </div>
         </Field>
-
-        <Field label="Stack padrão para novos projetos">
-          <div className="flex flex-wrap gap-2">
-            {STACKS.map(s => (
-              <button
-                key={s.value}
-                onClick={() => setDraft({ ...draft, defaultStack: s.value })}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
-                  draft.defaultStack === s.value ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
-                }`}
-              >
-                <Boxes className="w-3 h-3" /> {s.label}
-              </button>
-            ))}
-          </div>
-        </Field>
-      </section>
-
-      {/* Chave própria */}
-      <section className="bg-slate-900/30 border border-slate-900 rounded-2xl p-5 space-y-4">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <KeyRound className="w-4 h-4 text-indigo-400" /> Minha chave OpenRouter (opcional)
-        </h3>
-        <p className="text-[11px] text-slate-500 -mt-2">Use sua própria chave para não consumir os créditos da plataforma. Fica salva apenas neste navegador.</p>
-        <input
-          type="password"
-          value={draft.openrouterKey}
-          onChange={(e) => setDraft({ ...draft, openrouterKey: e.target.value })}
-          placeholder="sk-or-v1-..."
-          className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-white outline-none transition-colors font-mono"
-        />
       </section>
 
       <div className="flex items-center gap-3">

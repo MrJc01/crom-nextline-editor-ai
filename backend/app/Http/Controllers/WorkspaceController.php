@@ -86,9 +86,18 @@ class WorkspaceController extends Controller
         // Detecta a stack a partir dos arquivos recém-criados.
         $manifest = $this->detector->detect($workspaceDir);
 
+        $slug = \Illuminate\Support\Str::slug($name);
+        $baseSlug = $slug;
+        $count = 0;
+        while (Workspace::where('slug', $slug)->exists()) {
+            $count++;
+            $slug = $baseSlug . '-' . $count;
+        }
+
         $workspace = Workspace::create([
             'id' => $id,
             'name' => $name,
+            'slug' => $slug,
             'user_id' => $request->user()->id,
             'stack' => $manifest['type'],
             'framework' => $manifest['framework'],
@@ -217,6 +226,32 @@ class WorkspaceController extends Controller
             'error' => $result['error'] ?? null,
             'workspace' => $workspace->fresh(),
         ], $result['ok'] ? 200 : 500);
+    }
+
+    /**
+     * Serve um arquivo do workspace a partir do seu slug (para preview amigável/subdomínio).
+     */
+    public function rawBySlug(Request $request, $slug, $path = 'index.html')
+    {
+        // Se a rota receber slug como parâmetro da rota de subdomínio, ou se vier do path
+        $workspace = Workspace::where('slug', $slug)->firstOrFail();
+
+        $root = realpath($workspace->localPath());
+        if (!$root) {
+            abort(404);
+        }
+
+        // Se path for nulo ou vazio, padrão para index.html
+        if (empty($path)) {
+            $path = 'index.html';
+        }
+
+        $target = realpath($root . '/' . ltrim($path, '/'));
+        if (!$target || (!str_starts_with($target, $root . DIRECTORY_SEPARATOR) && $target !== $root) || !is_file($target)) {
+            abort(404);
+        }
+
+        return response()->file($target);
     }
 
     /**

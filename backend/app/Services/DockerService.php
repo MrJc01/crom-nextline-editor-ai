@@ -58,7 +58,21 @@ class DockerService
         $containerId = trim($run->getOutput());
 
         // Persiste stack + container antes do health check.
-        $previewUrl = 'http://localhost:' . $ws->port;
+        $type = env('PREVIEW_URL_TYPE', 'port');
+        $baseUrl = env('PREVIEW_BASE_URL', 'http://localhost:8000');
+
+        if ($type === 'subdomain') {
+            $host = parse_url($baseUrl, PHP_URL_HOST);
+            $scheme = parse_url($baseUrl, PHP_URL_SCHEME) ?? 'http';
+            $port = parse_url($baseUrl, PHP_URL_PORT);
+            $portSuffix = $port ? ':' . $port : '';
+            $previewUrl = $scheme . '://' . ($ws->slug ?? \Illuminate\Support\Str::slug($ws->name)) . '.' . $host . $portSuffix;
+        } elseif ($type === 'path') {
+            $previewUrl = rtrim($baseUrl, '/') . '/preview/' . ($ws->slug ?? \Illuminate\Support\Str::slug($ws->name));
+        } else {
+            $previewUrl = 'http://localhost:' . $ws->port;
+        }
+
         $ws->update([
             'stack' => $manifest['type'],
             'framework' => $manifest['framework'],

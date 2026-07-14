@@ -56,6 +56,9 @@ interface WorkspaceEditorProps {
   handleSendMessage: (text: string) => void
   handleResetWorkspace: () => void
   getIframeSrc: () => string
+  allowedModels: string[]
+  selectedModel: string
+  setSelectedModel: (val: string) => void
 }
 
 const STACK_LABELS: Record<string, string> = {
@@ -116,7 +119,10 @@ export default function WorkspaceEditor({
   handleStopDocker,
   handleSendMessage,
   handleResetWorkspace,
-  getIframeSrc
+  getIframeSrc,
+  allowedModels,
+  selectedModel,
+  setSelectedModel
 }: WorkspaceEditorProps) {
 
   const { id } = useParams<{ id: string }>()
@@ -354,6 +360,27 @@ export default function WorkspaceEditor({
 
               {/* Chat Input Footer */}
               <div className="p-4 border-t border-slate-900 bg-slate-900 shrink-0">
+                {/* Model selector select field */}
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Modelo IA:</span>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    disabled={isProcessing}
+                    className="bg-slate-950 border border-slate-800 text-[11px] text-slate-300 rounded px-2.5 py-1 outline-none focus:border-indigo-500 transition-colors"
+                  >
+                    {allowedModels.length > 0 ? (
+                      allowedModels.map(modelId => (
+                        <option key={modelId} value={modelId}>
+                          {modelId.split('/').pop()?.toUpperCase() || modelId}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={selectedModel}>{selectedModel.split('/').pop()?.toUpperCase() || selectedModel}</option>
+                    )}
+                  </select>
+                </div>
+
                 <form 
                   onSubmit={(e) => {
                     e.preventDefault()

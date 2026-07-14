@@ -28,6 +28,7 @@ class Workspace extends Model
         'preview_url',
         'last_error',
         'path',
+        'slug',
     ];
 
     protected $casts = [
@@ -64,5 +65,26 @@ class Workspace extends Model
     public static function storageBase(): string
     {
         return storage_path('app/workspaces');
+    }
+
+    /**
+     * Retorna a URL de preview de acordo com o modo configurado em .env.
+     */
+    public function getPreviewUrlAttribute($value)
+    {
+        $type = env('PREVIEW_URL_TYPE', 'port');
+        $baseUrl = env('PREVIEW_BASE_URL', 'http://localhost:8000');
+
+        if ($type === 'subdomain') {
+            $host = parse_url($baseUrl, PHP_URL_HOST);
+            $scheme = parse_url($baseUrl, PHP_URL_SCHEME) ?? 'http';
+            $port = parse_url($baseUrl, PHP_URL_PORT);
+            $portSuffix = $port ? ':' . $port : '';
+            return $scheme . '://' . ($this->slug ?? \Illuminate\Support\Str::slug($this->name)) . '.' . $host . $portSuffix;
+        } elseif ($type === 'path') {
+            return rtrim($baseUrl, '/') . '/preview/' . ($this->slug ?? \Illuminate\Support\Str::slug($this->name));
+        }
+
+        return 'http://localhost:' . $this->port;
     }
 }

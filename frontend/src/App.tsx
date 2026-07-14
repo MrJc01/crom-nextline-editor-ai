@@ -14,7 +14,7 @@ import { fetchWithAuth } from './utils/api'
 
 const API_BASE = 'http://localhost:8000/api'
 
-const DEFAULT_PREFS: UserPrefs = { theme: 'dark', defaultStack: 'static', openrouterKey: '' }
+const DEFAULT_PREFS: UserPrefs = { theme: 'dark' }
 
 function loadPrefs(): UserPrefs {
   try {
@@ -77,6 +77,8 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null)
   const [clientPoints, setClientPoints] = useState<number>(500)
+  const [allowedModels, setAllowedModels] = useState<string[]>([])
+  const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.0-flash-001')
 
   const [messages, setMessages] = useState<Message[]>([welcomeMessage()])
   const [inputText, setInputText] = useState('')
@@ -124,6 +126,26 @@ export default function App() {
       }
     } catch (err) {
       console.error('Error fetching client points', err)
+    }
+  }
+
+  // Fetch settings to discover allowed models and default model
+  const fetchSettings = async () => {
+    try {
+      const response = await fetchWithAuth('/settings')
+      const data = await response.json()
+      if (data.status === 'success') {
+        if (data.settings.allowed_models) {
+          try {
+            setAllowedModels(JSON.parse(data.settings.allowed_models))
+          } catch(e) {}
+        }
+        if (data.settings.default_model) {
+          setSelectedModel(data.settings.default_model)
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching settings', err)
     }
   }
 
@@ -352,8 +374,7 @@ export default function App() {
         body: JSON.stringify({
           prompt: text,
           workspace_id: activeWorkspace.id,
-          // Chave própria do usuário (BYO), se configurada nas preferências.
-          user_api_key: prefs.openrouterKey || undefined
+          model: selectedModel
         })
       })
       const data = await response.json()
@@ -453,6 +474,7 @@ export default function App() {
     if (isAuthenticated) {
       fetchWorkspaces()
       fetchClientPoints()
+      fetchSettings()
     }
   }, [isAuthenticated])
 
@@ -535,6 +557,9 @@ export default function App() {
                   handleSendMessage={handleSendMessage}
                   handleResetWorkspace={handleResetWorkspace}
                   getIframeSrc={getIframeSrc}
+                  allowedModels={allowedModels}
+                  selectedModel={selectedModel}
+                  setSelectedModel={setSelectedModel}
                 />
               ) : (
                 <Login onLoginSuccess={handleLoginSuccess} />
