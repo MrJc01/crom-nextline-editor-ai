@@ -11,6 +11,8 @@ export interface Workspace {
   health: string
   preview_url: string | null
   last_error: string | null
+  slug?: string | null
+  container_id?: string | null
   path: string
   created_at: string
 }

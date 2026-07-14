@@ -305,7 +305,17 @@ func runLLMModification(workspacePath, apiKey, model, prompt string, steps []str
 
 	steps = append(steps, fmt.Sprintf("Sucesso ao aplicar %d operações de edição", len(changedFiles)))
 	
-	return fmt.Sprintf("IA modificou com sucesso os arquivos do workspace."), steps, changedFiles, nil
+	var msg string
+	if len(changedFiles) > 0 {
+		msg = "A IA concluiu com sucesso as modificações solicitadas. Arquivos alterados no workspace:\n"
+		for _, f := range changedFiles {
+			msg += fmt.Sprintf("- `%s`\n", f)
+		}
+	} else {
+		msg = "A IA processou o pedido, mas nenhuma operação de alteração de arquivo foi necessária."
+	}
+	
+	return msg, steps, changedFiles, nil
 }
 
 func scanWorkspaceFiles(root string) (string, error) {

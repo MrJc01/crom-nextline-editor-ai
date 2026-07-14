@@ -81,7 +81,13 @@ class StackDetector
             $port = 3000;
         } else {
             $framework = null;
-            $port = 3000;
+            $scriptName = isset($scripts['dev']) ? 'dev' : (isset($scripts['start']) ? 'start' : 'dev');
+            $scriptBody = $scripts[$scriptName] ?? '';
+            if (str_contains($scriptBody, 'webpack')) {
+                $port = 8080;
+            } else {
+                $port = 3000;
+            }
         }
 
         // A porta declarada no script (--port N) sempre vence o default do framework.

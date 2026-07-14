@@ -24,9 +24,11 @@ import {
   Pencil,
   X,
   Trash2,
+  Settings,
 } from 'lucide-react'
 import FileTree from '../components/FileTree'
 import SpecialistsPanel from '../components/SpecialistsPanel'
+import { fetchWithAuth } from '../utils/api'
 import type { Workspace, Message, FileNode, OpenFile } from '../types'
 
 interface WorkspaceEditorProps {
@@ -37,8 +39,6 @@ interface WorkspaceEditorProps {
   isProcessing: boolean
   previewMode: 'desktop' | 'tablet' | 'mobile'
   setPreviewMode: (val: 'desktop' | 'tablet' | 'mobile') => void
-  activeTab: 'preview' | 'code' | 'logs'
-  setActiveTab: (val: 'preview' | 'code' | 'logs') => void
   fileTree: FileNode[]
   treeLoading: boolean
   openFile: OpenFile | null
@@ -49,7 +49,6 @@ interface WorkspaceEditorProps {
   reloadKey: number
   pollStatus: (wsId: string) => Promise<Workspace | null>
   terminalLogs: any[]
-  setTerminalLogs: (val: any) => void
   handleLoadWorkspace: (id: string) => void
   handleStartDocker: (wsId: string) => void
   handleStopDocker: (wsId: string) => void
@@ -101,8 +100,6 @@ export default function WorkspaceEditor({
   isProcessing,
   previewMode,
   setPreviewMode,
-  activeTab,
-  setActiveTab,
   fileTree,
   treeLoading,
   openFile,
@@ -113,7 +110,6 @@ export default function WorkspaceEditor({
   reloadKey,
   pollStatus,
   terminalLogs,
-  setTerminalLogs,
   handleLoadWorkspace,
   handleStartDocker,
   handleStopDocker,
@@ -124,11 +120,16 @@ export default function WorkspaceEditor({
   selectedModel,
   setSelectedModel
 }: WorkspaceEditorProps) {
-
   const { id } = useParams<{ id: string }>()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Local tabs state
+  const [activeLeftTab, setActiveLeftTab] = useState<'chat' | 'settings'>('chat')
+  const [activeRightTab, setActiveRightTab] = useState<'preview' | 'code'>('preview')
+  const [isTerminalExpanded, setIsTerminalExpanded] = useState(false)
+  const [dockerLogs, setDockerLogs] = useState<string>('')
 
   // Último pedido do usuário, para contextualizar o painel de especialistas.
   const lastUserPrompt = [...messages].reverse().find(m => m.sender === 'user')?.text ?? ''
@@ -153,6 +154,30 @@ export default function WorkspaceEditor({
     setSaving(false)
     if (ok) setEditing(false)
   }
+
+  const fetchDockerLogs = async () => {
+    if (!activeWorkspace || activeWorkspace.status !== 'running') {
+      setDockerLogs('Contêiner offline ou inicializando.')
+      return
+    }
+    try {
+      const res = await fetchWithAuth(`/workspaces/${activeWorkspace.id}/logs`)
+      const data = await res.json()
+      if (data.status === 'success') {
+        setDockerLogs(data.logs || 'Sem logs do contêiner.')
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  // Poll docker logs periodically when expanded and container is running
+  useEffect(() => {
+    if (!isTerminalExpanded || !activeWorkspace || activeWorkspace.status !== 'running') return
+    fetchDockerLogs()
+    const interval = setInterval(fetchDockerLogs, 4000)
+    return () => clearInterval(interval)
+  }, [isTerminalExpanded, activeWorkspace?.status, activeWorkspace?.id])
 
   // Enquanto o servidor está subindo, reconcilia o status até virar running/error.
   useEffect(() => {
@@ -198,7 +223,7 @@ export default function WorkspaceEditor({
               {activeWorkspace.name}
               <StatusBadge status={activeWorkspace.status} />
             </h3>
-            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500 font-mono">
+            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-550 font-mono">
               <Layers className="w-3 h-3 text-indigo-400/70" />
               <span>{stackLabel(activeWorkspace)}</span>
             </div>
@@ -207,7 +232,8 @@ export default function WorkspaceEditor({
 
         {/* Quick Docker control actions directly in header */}
         <div className="flex items-center gap-3">
-          <span className="text-[10px] text-slate-500 font-mono">Porta preview: {activeWorkspace.port}</span>
+          <span className="text-[10px] text-slate-505 font-mono">Slug: {activeWorkspace.slug}</span>
+          <div className="h-4 w-px bg-slate-800"></div>
           {activeWorkspace.status === 'running' ? (
             <button
               onClick={() => handleStopDocker(activeWorkspace.id)}
@@ -231,62 +257,49 @@ export default function WorkspaceEditor({
         </div>
       </header>
 
-      {/* Main Canvas layout */}
+      {/* Main Content Split layout */}
       <div className="flex flex-grow w-full overflow-hidden">
         
-        {/* Left Panel: Chat Control and Logs */}
+        {/* Left Panel: Chat Control / Settings */}
         <div className="w-[420px] md:w-[450px] shrink-0 border-r border-slate-900 flex flex-col bg-slate-900/40 relative">
-          
           {/* Tabs header */}
-          <div className="flex border-b border-slate-900 bg-slate-950/20 text-xs shrink-0">
+          <div className="flex border-b border-slate-900 bg-slate-950/20 text-xs shrink-0 select-none">
             <button 
-              onClick={() => setActiveTab('preview')}
-              className={`flex-1 py-3 px-4 font-semibold text-center transition-all flex items-center justify-center gap-1.5 border-b-2 ${
-                activeTab === 'preview' ? 'border-indigo-500 text-white bg-slate-900/40' : 'border-transparent text-slate-400 hover:text-slate-200'
+              onClick={() => setActiveLeftTab('chat')}
+              className={`flex-1 py-3 px-4 font-semibold text-center transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${
+                activeLeftTab === 'chat' ? 'border-indigo-500 text-white bg-slate-900/40' : 'border-transparent text-slate-450 hover:text-slate-200'
               }`}
             >
               <MessageSquare className="w-3.5 h-3.5" />
               Chat de Comando
             </button>
             <button 
-              onClick={() => setActiveTab('code')}
-              className={`flex-1 py-3 px-4 font-semibold text-center transition-all flex items-center justify-center gap-1.5 border-b-2 ${
-                activeTab === 'code' ? 'border-indigo-500 text-white bg-slate-900/40' : 'border-transparent text-slate-400 hover:text-slate-200'
+              onClick={() => setActiveLeftTab('settings')}
+              className={`flex-1 py-3 px-4 font-semibold text-center transition-all flex items-center justify-center gap-1.5 border-b-2 cursor-pointer ${
+                activeLeftTab === 'settings' ? 'border-indigo-500 text-white bg-slate-900/40' : 'border-transparent text-slate-450 hover:text-slate-200'
               }`}
             >
-              <FileCode className="w-3.5 h-3.5" />
-              Ver Código Fonte
-            </button>
-            <button 
-              onClick={() => setActiveTab('logs')}
-              className={`flex-1 py-3 px-4 font-semibold text-center transition-all flex items-center justify-center gap-1.5 border-b-2 ${
-                activeTab === 'logs' ? 'border-indigo-500 text-white bg-slate-900/40' : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Terminal className="w-3.5 h-3.5" />
-              Logs ({terminalLogs.length})
+              <Settings className="w-3.5 h-3.5" />
+              Configurações
             </button>
           </div>
 
-          {/* TAB CONTENT: CHAT CONTROL */}
-          {activeTab === 'preview' && (
+          {/* TAB CONTENT: CHAT */}
+          {activeLeftTab === 'chat' && (
             <>
-              {/* Chat header: histórico persistido por workspace */}
               <div className="flex items-center justify-between px-4 py-2 border-b border-slate-900 bg-slate-950/20 shrink-0">
-                <span className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                <span className="text-[10px] text-slate-500 flex items-center gap-1.5 font-semibold">
                   <MessageSquare className="w-3 h-3 text-indigo-400/70" />
                   Conversa salva deste workspace
                 </span>
                 <button
                   onClick={handleClearChat}
-                  className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
-                  title="Limpar histórico desta conversa"
+                  className="flex items-center gap-1 text-[10px] text-slate-550 hover:text-rose-400 transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3 h-3" /> Limpar
                 </button>
               </div>
 
-              {/* Messages Body */}
               <div className="flex-grow overflow-y-auto p-4 space-y-4">
                 {messages.map((msg: Message) => (
                   <div 
@@ -296,7 +309,7 @@ export default function WorkspaceEditor({
                     }`}
                   >
                     <div 
-                      className={`rounded-xl px-4 py-3 text-sm leading-relaxed shadow-md ${
+                      className={`rounded-xl px-4 py-3 text-sm leading-relaxed shadow-md whitespace-pre-wrap ${
                         msg.sender === 'user' 
                           ? 'bg-indigo-600 text-white rounded-br-none' 
                           : 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-bl-none'
@@ -304,7 +317,6 @@ export default function WorkspaceEditor({
                     >
                       {msg.text}
 
-                      {/* Display agent steps if present */}
                       {msg.steps && (
                         <div className="mt-3 pt-2.5 border-t border-slate-700/60 text-xs text-slate-400 space-y-1.5">
                           <div className="font-semibold text-slate-300 flex items-center gap-1 mb-1">
@@ -313,7 +325,7 @@ export default function WorkspaceEditor({
                           </div>
                           {msg.steps.map((step, idx) => (
                             <div key={idx} className="flex items-center gap-1.5 text-slate-300">
-                              <span className="w-1 h-1 rounded-full bg-indigo-400"></span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
                               {step}
                             </div>
                           ))}
@@ -328,7 +340,7 @@ export default function WorkspaceEditor({
                 
                 {isProcessing && (
                   <div className="flex flex-col w-full mr-auto items-start gap-2">
-                    <div className="rounded-xl px-4 py-3 bg-slate-800/60 border border-slate-700/50 text-slate-400 text-sm rounded-bl-none flex items-center gap-2">
+                    <div className="rounded-xl px-4 py-3 bg-slate-800/60 border border-slate-700/50 text-slate-450 text-sm rounded-bl-none flex items-center gap-2">
                       <span className="flex gap-1 items-center">
                         <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]"></span>
                         <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]"></span>
@@ -341,7 +353,6 @@ export default function WorkspaceEditor({
                 )}
               </div>
 
-              {/* Suggestions Panel */}
               <div className="px-4 py-2 bg-slate-900/30 border-t border-slate-900 shrink-0">
                 <span className="text-[10px] font-bold text-slate-500 block mb-1.5 uppercase tracking-wider">Sugestões rápidas</span>
                 <div className="flex flex-wrap gap-1.5">
@@ -350,7 +361,7 @@ export default function WorkspaceEditor({
                       key={idx}
                       onClick={() => handleSendMessage(s)}
                       disabled={isProcessing}
-                      className="text-xs bg-slate-800 hover:bg-slate-755 text-slate-300 border border-slate-700/60 rounded-md py-1 px-2.5 transition-colors cursor-pointer text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-xs bg-slate-800/70 hover:bg-slate-700 text-slate-300 border border-slate-700/50 rounded-md py-1 px-2.5 transition-colors cursor-pointer text-left disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {s}
                     </button>
@@ -358,16 +369,14 @@ export default function WorkspaceEditor({
                 </div>
               </div>
 
-              {/* Chat Input Footer */}
               <div className="p-4 border-t border-slate-900 bg-slate-900 shrink-0">
-                {/* Model selector select field */}
                 <div className="flex items-center gap-2 mb-2 px-1">
                   <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Modelo IA:</span>
                   <select
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
                     disabled={isProcessing}
-                    className="bg-slate-950 border border-slate-800 text-[11px] text-slate-300 rounded px-2.5 py-1 outline-none focus:border-indigo-500 transition-colors"
+                    className="bg-slate-950 border border-slate-800 text-[11px] text-slate-300 rounded px-2.5 py-0.5 outline-none focus:border-indigo-500 transition-colors"
                   >
                     {allowedModels.length > 0 ? (
                       allowedModels.map(modelId => (
@@ -412,12 +421,242 @@ export default function WorkspaceEditor({
             </>
           )}
 
-          {/* TAB CONTENT: CODE EXPLORER */}
-          {activeTab === 'code' && (
+          {/* TAB CONTENT: SETTINGS */}
+          {activeLeftTab === 'settings' && (
+            <div className="flex-grow overflow-y-auto p-5 space-y-5 select-text">
+              <div className="border-b border-slate-900 pb-4">
+                <h3 className="text-sm font-bold text-white">Configurações do Workspace</h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">Gerenciamento de stack e metadados do projeto.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Nome do Workspace</label>
+                  <div className="text-xs text-slate-300 font-semibold bg-slate-950 border border-slate-900 rounded-lg p-2.5">
+                    {activeWorkspace.name}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Identificador Slug</label>
+                  <div className="text-xs text-slate-400 font-mono bg-slate-950 border border-slate-900 rounded-lg p-2.5 select-all">
+                    {activeWorkspace.slug || 'N/A'}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Stack Operacional</label>
+                  <div className="text-xs text-slate-400 font-mono bg-slate-950 border border-slate-900 rounded-lg p-2.5">
+                    {stackLabel(activeWorkspace)}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">ID do Contêiner Docker</label>
+                  <div className="text-xs text-slate-500 font-mono bg-slate-950 border border-slate-900 rounded-lg p-2.5 truncate" title={activeWorkspace.container_id || 'N/A'}>
+                    {activeWorkspace.container_id || 'N/A'}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Caminho no Servidor Host</label>
+                  <div className="text-xs text-slate-500 font-mono bg-slate-950 border border-slate-900 rounded-lg p-2.5 select-all break-all">
+                    {activeWorkspace.path}
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={handleResetWorkspace}
+                    className="w-full py-2 bg-slate-900 hover:bg-rose-950/25 border border-slate-800 hover:border-rose-500/30 text-slate-400 hover:text-rose-455 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                  >
+                    Resetar arquivos para o estado padrão
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Side: Preview & Code (Toggled in same area) + Bottom logs */}
+        <div className="flex-grow flex flex-col bg-slate-950 overflow-hidden relative">
+          
+          {/* Header Toggle tabs */}
+          <div className="flex bg-slate-950 border-b border-slate-900 text-xs shrink-0 select-none">
+            <button 
+              onClick={() => setActiveRightTab('preview')}
+              className={`py-3 px-6 font-bold text-center transition-all flex items-center gap-1.5 border-b-2 cursor-pointer ${
+                activeRightTab === 'preview' ? 'border-indigo-500 text-white bg-slate-900/20' : 'border-transparent text-slate-450 hover:text-slate-200'
+              }`}
+            >
+              <Laptop className="w-3.5 h-3.5 text-indigo-400" />
+              Visualização (Preview)
+            </button>
+            <button 
+              onClick={() => setActiveRightTab('code')}
+              className={`py-3 px-6 font-bold text-center transition-all flex items-center gap-1.5 border-b-2 cursor-pointer ${
+                activeRightTab === 'code' ? 'border-indigo-500 text-white bg-slate-900/20' : 'border-transparent text-slate-450 hover:text-slate-200'
+              }`}
+            >
+              <FileCode className="w-3.5 h-3.5 text-indigo-400" />
+              Código Fonte
+            </button>
+          </div>
+
+          {/* VIEWPORT CONTROLLER: PREVIEW */}
+          {activeRightTab === 'preview' && (
+            <div className="flex-grow flex flex-col overflow-hidden relative">
+              {/* Iframe Control Bar */}
+              <div className="flex items-center justify-between px-6 py-2 bg-slate-900/50 border-b border-slate-900 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-rose-500/70"></span>
+                  <span className="w-3 h-3 rounded-full bg-yellow-500/70"></span>
+                  <span className="w-3 h-3 rounded-full bg-green-500/70"></span>
+                  <div className="ml-4 h-6 px-3 rounded bg-slate-950/60 border border-slate-900 text-[10px] font-mono flex items-center gap-1.5 w-64 md:w-80 select-all">
+                    <span className={activeWorkspace.status === 'running' ? 'text-emerald-500' : 'text-slate-500'}>
+                      {activeWorkspace.status === 'running'
+                        ? activeWorkspace.preview_url
+                        : activeWorkspace.status === 'starting'
+                          ? 'Subindo contêiner...'
+                          : 'Servidor desligado'}
+                    </span>
+                  </div>
+                  
+                  {activeWorkspace.status === 'running' && (
+                    <a 
+                      href={activeWorkspace.preview_url || undefined} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                      title="Abrir em Nova Aba"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  
+                  <button
+                    onClick={reloadPreview}
+                    className="flex items-center gap-1 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-355 font-bold border border-slate-700 rounded px-2.5 py-1 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Recarregar
+                  </button>
+
+                  <button
+                    onClick={handleResetWorkspace}
+                    className="flex items-center gap-1 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-355 font-bold border border-slate-700 rounded px-2.5 py-1 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3 h-3" /> Reset
+                  </button>
+                </div>
+
+                {/* Screen Toggles */}
+                <div className="flex items-center gap-1.5 bg-slate-950/50 p-1 rounded-md border border-slate-900">
+                  <button 
+                    onClick={() => setPreviewMode('desktop')}
+                    className={`p-1.5 rounded transition-colors cursor-pointer ${
+                      previewMode === 'desktop' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Laptop className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    onClick={() => setPreviewMode('tablet')}
+                    className={`p-1.5 rounded transition-colors cursor-pointer ${
+                      previewMode === 'tablet' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Tablet className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    onClick={() => setPreviewMode('mobile')}
+                    className={`p-1.5 rounded transition-colors cursor-pointer ${
+                      previewMode === 'mobile' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Iframe Viewport Container */}
+              <div className="flex-grow flex items-center justify-center p-6 bg-slate-950 relative overflow-hidden">
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-25"></div>
+
+                <div 
+                  className={`bg-slate-950 border border-slate-900 shadow-2xl rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full z-10 ${
+                    previewMode === 'desktop' ? 'w-full' :
+                    previewMode === 'tablet' ? 'w-[768px]' :
+                    'w-[375px] max-w-full'
+                  }`}
+                >
+                  <iframe
+                    key={reloadKey}
+                    title="Live Website Preview"
+                    src={getIframeSrc()}
+                    className="w-full h-full border-none bg-slate-900"
+                    sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"
+                  />
+
+                  {/* Overlay de estado quando o servidor não está no ar */}
+                  {activeWorkspace.status !== 'running' && (
+                    <div className="absolute inset-0 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-6 z-20">
+                      <div className="text-center max-w-sm space-y-4">
+                        {activeWorkspace.status === 'starting' ? (
+                          <>
+                            <Loader2 className="w-10 h-10 text-amber-400 mx-auto animate-spin" />
+                            <h4 className="text-white font-bold text-sm">Subindo o servidor de preview</h4>
+                            <p className="text-slate-400 text-xs leading-relaxed">
+                              Detectando a stack ({stackLabel(activeWorkspace)}), instalando dependências e iniciando o contêiner...
+                            </p>
+                          </>
+                        ) : activeWorkspace.status === 'error' ? (
+                          <>
+                            <AlertTriangle className="w-10 h-10 text-rose-400 mx-auto" />
+                            <h4 className="text-white font-bold text-sm">Falha ao subir o servidor</h4>
+                            {activeWorkspace.last_error && (
+                              <pre className="text-left text-[10px] text-rose-300/90 bg-rose-500/5 border border-rose-500/20 rounded-lg p-3 max-h-32 overflow-auto whitespace-pre-wrap font-mono">
+                                {activeWorkspace.last_error}
+                              </pre>
+                            )}
+                            <button
+                              onClick={() => handleStartDocker(activeWorkspace.id)}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" /> Tentar novamente
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="h-14 w-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto">
+                              <Server className="w-7 h-7 text-slate-500" />
+                            </div>
+                            <h4 className="text-white font-bold text-sm">Servidor desligado</h4>
+                            <p className="text-slate-450 text-xs leading-relaxed">
+                              O contêiner de preview deste workspace ({stackLabel(activeWorkspace)}) está parado.
+                              Ligue para ver o projeto rodando de verdade em <span className="font-mono text-slate-350 select-all">{activeWorkspace.preview_url}</span>.
+                            </p>
+                            <button
+                              onClick={() => handleStartDocker(activeWorkspace.id)}
+                              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-emerald-600/20 transition-colors cursor-pointer"
+                            >
+                              <Play className="w-4 h-4" /> Ligar Servidor
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEWPORT CONTROLLER: SOURCE CODE */}
+          {activeRightTab === 'code' && (
             <div className="flex-grow flex overflow-hidden">
               {/* Árvore de arquivos recursiva */}
-              <div className="w-[42%] min-w-[150px] border-r border-slate-900 flex flex-col overflow-hidden bg-slate-950/30">
-                <div className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-950/40 border-b border-slate-900 text-[11px] text-slate-400 shrink-0">
+              <div className="w-[28%] min-w-[150px] border-r border-slate-900 flex flex-col overflow-hidden bg-slate-950/30">
+                <div className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-950/40 border-b border-slate-900 text-[11px] text-slate-400 shrink-0 select-none">
                   <FolderTree className="w-3.5 h-3.5 text-indigo-400" />
                   <span>Arquivos do Projeto</span>
                 </div>
@@ -433,7 +672,7 @@ export default function WorkspaceEditor({
 
               {/* Conteúdo do arquivo selecionado */}
               <div className="flex-grow flex flex-col overflow-hidden">
-                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-950/40 border-b border-slate-900 text-[11px] shrink-0">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-950/40 border-b border-slate-900 text-[11px] shrink-0 select-none">
                   <span className="flex items-center gap-1.5 min-w-0">
                     <FileCode className="w-3 h-3 text-slate-400 shrink-0" />
                     <span className="font-mono text-slate-300 truncate">{openFile?.path || 'Selecione um arquivo'}</span>
@@ -459,7 +698,7 @@ export default function WorkspaceEditor({
                       ) : (
                         <button
                           onClick={() => { setDraft(openFile.content); setEditing(true) }}
-                          className="flex items-center gap-1 text-[10px] bg-slate-800 hover:bg-indigo-600/20 hover:text-indigo-300 text-slate-300 px-2 py-1 rounded transition-colors cursor-pointer"
+                          className="flex items-center gap-1 text-[10px] bg-slate-800 hover:bg-indigo-650/20 hover:text-indigo-300 text-slate-300 px-2 py-1 rounded transition-colors cursor-pointer"
                         >
                           <Pencil className="w-3 h-3" /> Editar
                         </button>
@@ -475,16 +714,16 @@ export default function WorkspaceEditor({
                     className="flex-grow resize-none p-4 bg-slate-950 font-mono text-xs text-slate-200 leading-relaxed outline-none border-none"
                   />
                 ) : (
-                  <div className="flex-grow overflow-auto p-4 bg-slate-950/90 font-mono text-xs text-slate-300 leading-relaxed">
+                  <div className="flex-grow overflow-auto p-4 bg-slate-950/90 font-mono text-xs text-slate-350 leading-relaxed">
                     <pre className="whitespace-pre">{openFile ? openFile.content : 'Nenhum arquivo aberto.'}</pre>
                   </div>
                 )}
-                <div className="p-3 bg-slate-900 border-t border-slate-900 text-[11px] text-slate-400 flex items-center justify-between shrink-0">
+                <div className="p-3 bg-slate-900 border-t border-slate-900 text-[11px] text-slate-450 flex items-center justify-between shrink-0 select-none">
                   <span className="flex items-center gap-1">
                     <HardDrive className="w-3 h-3 text-slate-500" />
                     Raiz no disco
                   </span>
-                  <span className="font-mono text-slate-300 truncate max-w-[220px]">
+                  <span className="font-mono text-slate-400 truncate max-w-[220px]">
                     {activeWorkspace.path}
                   </span>
                 </div>
@@ -492,203 +731,78 @@ export default function WorkspaceEditor({
             </div>
           )}
 
-          {/* TAB CONTENT: TERMINAL LOGS */}
-          {activeTab === 'logs' && (
-            <div className="flex-grow flex flex-col overflow-hidden bg-slate-950">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-900 text-xs shrink-0">
-                <span className="font-mono text-slate-400 flex items-center gap-1.5">
-                  <Terminal className="w-3.5 h-3.5 text-indigo-400" /> Console de logs do Laravel & Go Wrapper
-                </span>
-                <button 
-                  onClick={() => setTerminalLogs([])}
-                  className="text-[10px] text-slate-500 hover:text-slate-300 underline font-mono"
-                >
-                  Limpar
-                </button>
-              </div>
-
-              <div className="flex-grow p-4 overflow-y-auto font-mono text-[11px] space-y-2 select-text">
-                {terminalLogs.length === 0 ? (
-                  <p className="text-slate-655 italic">Nenhum log registrado ainda.</p>
-                ) : (
-                  terminalLogs.map((log: any, idx: number) => (
-                    <div key={idx} className="flex gap-2 items-start hover:bg-slate-900/50 p-0.5 rounded">
-                      <span className="text-slate-655 shrink-0">[{log.timestamp}]</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 uppercase ${
-                        log.source === 'laravel' ? 'bg-rose-500/10 text-rose-455 border border-rose-500/20' :
-                        log.source === 'go' ? 'bg-cyan-500/10 text-cyan-455 border border-cyan-500/20' :
-                        'bg-indigo-500/10 text-indigo-455 border border-indigo-500/20'
-                      }`}>
-                        {log.source}
-                      </span>
-                      <span className={`flex-grow ${
-                        log.type === 'success' ? 'text-emerald-400' :
-                        log.type === 'warning' ? 'text-yellow-400' :
-                        'text-slate-300'
-                      }`}>
-                        {log.message}
-                      </span>
-                    </div>
-                  ))
+          {/* Bottom Drawer: Logs & Terminal */}
+          <div 
+            className="border-t border-slate-900 bg-slate-950 shrink-0 z-30 flex flex-col transition-all duration-300" 
+            style={{ height: isTerminalExpanded ? '230px' : '36px' }}
+          >
+            {/* Header */}
+            <div 
+              onClick={() => setIsTerminalExpanded(!isTerminalExpanded)}
+              className="flex items-center justify-between px-6 py-2 bg-slate-900/40 border-b border-slate-950 text-xs font-semibold cursor-pointer hover:bg-slate-900/60 transition-colors shrink-0 select-none"
+            >
+              <div className="flex items-center gap-2 text-slate-300">
+                <Terminal className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Logs & Terminal de Execução do Docker</span>
+                {activeWorkspace.status === 'running' && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 )}
               </div>
-            </div>
-          )}
-
-        </div>
-
-        {/* Right Side: Site Preview / Visual Canvas */}
-        <div className="flex-grow flex flex-col bg-slate-950 overflow-hidden relative">
-          
-          {/* Iframe Control Bar */}
-          <div className="flex items-center justify-between px-6 py-2 bg-slate-900/50 border-b border-slate-900 shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-rose-500/70"></span>
-              <span className="w-3 h-3 rounded-full bg-yellow-500/70"></span>
-              <span className="w-3 h-3 rounded-full bg-green-500/70"></span>
-              <div className="ml-4 h-6 px-3 rounded bg-slate-950/60 border border-slate-900 text-[10px] font-mono flex items-center gap-1.5 w-64 md:w-80 select-all">
-                <span className={activeWorkspace.status === 'running' ? 'text-emerald-500' : 'text-slate-500'}>
-                  {activeWorkspace.status === 'running'
-                    ? (activeWorkspace.preview_url || `http://localhost:${activeWorkspace.port}`)
-                    : activeWorkspace.status === 'starting'
-                      ? 'Subindo contêiner...'
-                      : 'Servidor desligado'}
-                </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-slate-500 font-mono font-normal">Clique para {isTerminalExpanded ? 'minimizar' : 'expandir'}</span>
+                <button className="text-[10px] text-slate-400 hover:text-white font-mono">
+                  {isTerminalExpanded ? '▼' : '▲'}
+                </button>
               </div>
-              
-              {activeWorkspace.status === 'running' && (
-                <a 
-                  href={`http://localhost:${activeWorkspace.port}`} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-                  title="Abrir em Nova Aba"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              )}
-              
-              <button
-                onClick={reloadPreview}
-                className="flex items-center gap-1 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-355 font-bold border border-slate-700 rounded px-2.5 py-1 transition-colors cursor-pointer"
-                title="Recarregar Preview"
-              >
-                <RefreshCw className="w-3 h-3" /> Recarregar
-              </button>
-
-              <button
-                onClick={handleResetWorkspace}
-                className="flex items-center gap-1 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-355 font-bold border border-slate-700 rounded px-2.5 py-1 transition-colors cursor-pointer"
-                title="Resetar Site para Padrão"
-              >
-                <X className="w-3 h-3" /> Reset
-              </button>
             </div>
 
-            {/* Screen Toggles */}
-            <div className="flex items-center gap-1.5 bg-slate-950/50 p-1 rounded-md border border-slate-900">
-              <button 
-                onClick={() => setPreviewMode('desktop')}
-                className={`p-1.5 rounded transition-colors cursor-pointer ${
-                  previewMode === 'desktop' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Laptop className="w-3.5 h-3.5" />
-              </button>
-              <button 
-                onClick={() => setPreviewMode('tablet')}
-                className={`p-1.5 rounded transition-colors cursor-pointer ${
-                  previewMode === 'tablet' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Tablet className="w-3.5 h-3.5" />
-              </button>
-              <button 
-                onClick={() => setPreviewMode('mobile')}
-                className={`p-1.5 rounded transition-colors cursor-pointer ${
-                  previewMode === 'mobile' ? 'bg-indigo-650 text-white' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Iframe Viewport Container */}
-          <div className="flex-grow flex items-center justify-center p-6 bg-slate-950 relative overflow-hidden">
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-25"></div>
-
-            <div 
-              className={`bg-slate-950 border border-slate-900 shadow-2xl rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full z-10 ${
-                previewMode === 'desktop' ? 'w-full' :
-                previewMode === 'tablet' ? 'w-[768px]' :
-                'w-[375px] max-w-full'
-              }`}
-            >
-              <iframe
-                key={reloadKey}
-                title="Live Website Preview"
-                src={getIframeSrc()}
-                className="w-full h-full border-none bg-slate-900"
-                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"
-              />
-
-              {/* Overlay de estado quando o servidor não está no ar */}
-              {activeWorkspace.status !== 'running' && (
-                <div className="absolute inset-0 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-6 z-20">
-                  <div className="text-center max-w-sm space-y-4">
-                    {activeWorkspace.status === 'starting' ? (
-                      <>
-                        <Loader2 className="w-10 h-10 text-amber-400 mx-auto animate-spin" />
-                        <h4 className="text-white font-bold text-sm">Subindo o servidor de preview</h4>
-                        <p className="text-slate-400 text-xs leading-relaxed">
-                          Detectando a stack ({stackLabel(activeWorkspace)}), instalando dependências e iniciando o contêiner isolado...
-                        </p>
-                      </>
-                    ) : activeWorkspace.status === 'error' ? (
-                      <>
-                        <AlertTriangle className="w-10 h-10 text-rose-400 mx-auto" />
-                        <h4 className="text-white font-bold text-sm">Falha ao subir o servidor</h4>
-                        {activeWorkspace.last_error && (
-                          <pre className="text-left text-[10px] text-rose-300/90 bg-rose-500/5 border border-rose-500/20 rounded-lg p-3 max-h-32 overflow-auto whitespace-pre-wrap font-mono">
-                            {activeWorkspace.last_error}
-                          </pre>
-                        )}
-                        <button
-                          onClick={() => handleStartDocker(activeWorkspace.id)}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" /> Tentar novamente
-                        </button>
-                      </>
+            {/* Body */}
+            {isTerminalExpanded && (
+              <div className="flex-grow flex overflow-hidden">
+                {/* Col 1: System Logs (Laravel/CLI) */}
+                <div className="w-[50%] border-r border-slate-900/60 flex flex-col overflow-hidden">
+                  <div className="px-4 py-1.5 bg-slate-900/10 border-b border-slate-900/40 text-[10px] text-slate-500 uppercase tracking-wider font-bold select-none">Logs do Sistema (Laravel & CLI)</div>
+                  <div className="flex-grow p-3 overflow-y-auto font-mono text-[10px] space-y-1.5 bg-slate-950 select-text">
+                    {terminalLogs.length === 0 ? (
+                      <p className="text-slate-600 italic">Nenhum log de sistema.</p>
                     ) : (
-                      <>
-                        <div className="h-14 w-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto">
-                          <Server className="w-7 h-7 text-slate-500" />
+                      terminalLogs.map((log: any, idx: number) => (
+                        <div key={idx} className="flex gap-2 items-start">
+                          <span className="text-slate-600">[{log.timestamp}]</span>
+                          <span className={`px-1 py-0.2 rounded text-[8px] font-extrabold uppercase ${
+                            log.source === 'laravel' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                          }`}>
+                            {log.source}
+                          </span>
+                          <span className={log.type === 'error' ? 'text-rose-400' : log.type === 'success' ? 'text-emerald-400' : 'text-slate-400'}>
+                            {log.message}
+                          </span>
                         </div>
-                        <h4 className="text-white font-bold text-sm">Servidor desligado</h4>
-                        <p className="text-slate-400 text-xs leading-relaxed">
-                          O contêiner de preview deste workspace ({stackLabel(activeWorkspace)}) está parado.
-                          Ligue para ver o projeto rodando de verdade em <span className="font-mono text-slate-300">localhost:{activeWorkspace.port}</span>.
-                        </p>
-                        <button
-                          onClick={() => handleStartDocker(activeWorkspace.id)}
-                          className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-emerald-600/20 transition-colors cursor-pointer"
-                        >
-                          <Play className="w-4 h-4" /> Ligar Servidor
-                        </button>
-                      </>
+                      ))
                     )}
                   </div>
                 </div>
-              )}
-            </div>
+
+                {/* Col 2: Docker Container Output */}
+                <div className="w-[50%] flex flex-col overflow-hidden">
+                  <div className="px-4 py-1.5 bg-slate-900/10 border-b border-slate-900/40 text-[10px] text-slate-500 uppercase tracking-wider font-bold select-none flex justify-between items-center">
+                    <span>Console do Contêiner Docker ({stackLabel(activeWorkspace)})</span>
+                    <button 
+                      onClick={fetchDockerLogs}
+                      className="text-[9px] text-indigo-400 hover:text-indigo-300 font-mono cursor-pointer"
+                    >
+                      Atualizar
+                    </button>
+                  </div>
+                  <div className="flex-grow p-3 overflow-y-auto font-mono text-[10px] bg-black text-slate-350 select-text whitespace-pre-wrap leading-relaxed">
+                    {dockerLogs ? dockerLogs : "Nenhum output de contêiner ou contêiner offline."}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-
         </div>
-
       </div>
-
     </div>
   )
 }

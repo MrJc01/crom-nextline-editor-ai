@@ -10,10 +10,11 @@ use App\Models\Workspace;
 use App\Models\Client;
 use App\Models\Setting;
 use App\Services\FileTreeService;
+use App\Services\DockerService;
 
 class AgentController extends Controller
 {
-    public function __construct(private FileTreeService $tree)
+    public function __construct(private FileTreeService $tree, private DockerService $docker)
     {
     }
 
@@ -138,6 +139,14 @@ class AgentController extends Controller
             }
             $output['client_points'] = $client->fresh()->points;
             $output['billed'] = !$isAdmin && !$usingOwnKey;
+
+            // Reinicia o contêiner de preview de forma assíncrona se estiver rodando
+            // para aplicar as mudanças nos arquivos físicos e reconstruir se a stack mudou.
+            $workspace = Workspace::find($workspaceId);
+            if ($workspace && $workspace->status === 'running') {
+                $this->docker->stop($workspace);
+                $this->docker->start($workspace->fresh());
+            }
         }
 
         return response()->json($output);

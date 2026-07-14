@@ -81,10 +81,10 @@ export default function App() {
   const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.0-flash-001')
 
   const [messages, setMessages] = useState<Message[]>([welcomeMessage()])
+  const [chatWorkspaceId, setChatWorkspaceId] = useState<string | null>(null)
   const [inputText, setInputText] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
-  const [activeTab, setActiveTab] = useState<'preview' | 'code' | 'logs'>('preview')
   const [agentStatus, setAgentStatus] = useState<'idle' | 'analyzing' | 'running_go' | 'writing_files' | 'done'>('idle')
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [treeLoading, setTreeLoading] = useState(false)
@@ -104,16 +104,18 @@ export default function App() {
   }
 
   // Fetch workspaces
-  const fetchWorkspaces = async () => {
+  const fetchWorkspaces = async (): Promise<Workspace[]> => {
     try {
       const response = await fetchWithAuth('/workspaces')
       const data = await response.json()
       if (data.status === 'success') {
         setWorkspaces(data.workspaces)
+        return data.workspaces as Workspace[]
       }
     } catch (err) {
       addLog('laravel', 'warning', 'Erro ao conectar ao Laravel Backend na porta 8000.')
     }
+    return []
   }
 
   // Fetch client points
@@ -241,19 +243,21 @@ export default function App() {
 
   // Load a workspace from routing param
   const handleLoadWorkspace = (id: string) => {
-    const found = workspaces.find(w => w.id === id)
+    const found = workspaces.find((w: Workspace) => w.id === id)
     if (found) {
       setActiveWorkspace(found)
       setMessages(loadChat(found.id))
+      setChatWorkspaceId(found.id)
       syncWorkspaceFiles(found.id)
       addLog('laravel', 'info', `Workspace carregado para edição: ${found.name}`)
     } else {
       // Se a lista de workspaces ainda estiver vazia no primeiro render, tenta carregar após fetch
-      fetchWorkspaces().then(() => {
-        const retryFound = workspaces.find(w => w.id === id)
+      fetchWorkspaces().then((list) => {
+        const retryFound = list.find((w: Workspace) => w.id === id)
         if (retryFound) {
           setActiveWorkspace(retryFound)
           setMessages(loadChat(retryFound.id))
+          setChatWorkspaceId(retryFound.id)
           syncWorkspaceFiles(retryFound.id)
         }
       })
@@ -262,10 +266,10 @@ export default function App() {
 
   // Persiste o histórico de chat do workspace ativo sempre que ele muda.
   useEffect(() => {
-    if (activeWorkspace) {
+    if (activeWorkspace && chatWorkspaceId === activeWorkspace.id) {
       localStorage.setItem(chatKey(activeWorkspace.id), JSON.stringify(messages))
     }
-  }, [messages, activeWorkspace?.id])
+  }, [messages, activeWorkspace?.id, chatWorkspaceId])
 
   // Handle Create Workspace
   const handleCreateWorkspace = async (name: string, stack: string = 'static'): Promise<string | null> => {
@@ -538,8 +542,6 @@ export default function App() {
                   isProcessing={isProcessing}
                   previewMode={previewMode}
                   setPreviewMode={setPreviewMode}
-                  activeTab={activeTab}
-                  setActiveTab={setActiveTab}
                   fileTree={fileTree}
                   treeLoading={treeLoading}
                   openFile={openFile}
@@ -550,7 +552,6 @@ export default function App() {
                   reloadKey={reloadKey}
                   pollStatus={pollStatus}
                   terminalLogs={terminalLogs}
-                  setTerminalLogs={setTerminalLogs}
                   handleLoadWorkspace={handleLoadWorkspace}
                   handleStartDocker={handleStartDocker}
                   handleStopDocker={handleStopDocker}
