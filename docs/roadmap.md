@@ -38,81 +38,65 @@ sequenceDiagram
 
 ---
 
-## 🎨 Frontend & Roteamento (Roadmap)
+## 🎨 Frontend & Roteamento
 
-### 1. Estrutura de Telas e Rotas
-Como a aplicação é um painel administrativo/editor de tela única, utilizaremos um sistema de abas e um roteador minimalista (React Router ou estado de abas locais):
-- `/` - **Dashboard/Editor Principal:** A tela de split-screen padrão.
-- `/settings` - **Configurações:** Configurações de conexão do `crom-agente` local e variáveis de ambiente.
+### 1. Estrutura de Telas e Rotas React
+A aplicação utiliza o `react-router-dom` para gerenciar as seguintes rotas da SPA:
+- `/` - **Página Inicial (Home):** Apresentação e links rápidos.
+- `/sobre` - **Sobre o Crom Nextline:** Explicação institucional.
+- `/login` - **Página de Login:** Autenticação via Laravel Sanctum.
+- `/dashboard` - **Listagem de Workspaces:** Gerenciamento centralizado de projetos do cliente.
+- `/workspace/create` - **Criação Detalhada:** Interface com cards de stacks interativos e slug generator.
+- `/workspace/:id` - **Editor Principal (Split-Screen):** Editor com árvore de arquivos, preview e chat multithread.
+- `/configuracoes` - **Configurações do Usuário:** Gestão de perfil e consulta de pontos.
 
 ### 2. Gerenciamento de Estado
-O estado centralizado no frontend cuidará de:
-- **Histórico do Chat:** Coleção de mensagens com remetente, conteúdo e *stepper* de status do agente.
+O estado centralizado no frontend cuida de:
+- **Histórico do Chat Multithread (threads):** Lista de chats salvos e ativos persistida no `localStorage`.
 - **Preview Viewport:** Alternar entre `desktop` (w-full), `tablet` (w-[768px]) e `mobile` (w-[375px]).
-- **Aba Ativa da Barra Lateral:** `Chat de Comando`, `Editor de Código` e `Logs do Terminal`.
-- **HMR Listener:** Ouvinte de conexões de eventos para recarregar o iframe sempre que receber um sinal de modificação do disco.
+- **Logs do Terminal:** Log consolidado do Laravel, Go CLI e Crom Agente.
+- **Árvore de Arquivos e Arquivo Aberto:** Renderizado recursivamente.
 
 ---
 
-## 🔌 API do Backend Laravel (Roadmap)
+## 🔌 API do Backend Laravel
 
-Abaixo estão os endpoints que o backend expõe para servir a aplicação React:
+O backend expõe a seguinte estrutura de rotas protegidas por middleware Sanctum (ou abertas para autenticação):
 
-### 1. Processar Comando do Chat
-- **Rota:** `POST /api/command`
-- **Payload (JSON):**
-  ```json
-  {
-    "prompt": "Adicionar seção de contato no final da página"
-  }
-  ```
-- **Resposta (JSON):**
-  ```json
-  {
-    "status": "success",
-    "message": "Adicionei uma seção de contato moderna na parte inferior.",
-    "steps": [
-      "Processado por Laravel",
-      "Binário Go compilado e executado",
-      "Crom Agente reescreveu index.html",
-      "Hot-reload disparado para o visualizador"
-    ]
-  }
-  ```
+### 1. Autenticação
+- `POST /api/login` — Autenticação de clientes e administradores, retorna o token de acesso Sanctum.
+- `POST /api/logout` — Revogação de tokens de acesso.
 
-### 2. Buscar Arquivos do Projeto (Editor de Código)
-- **Rota:** `GET /api/files`
-- **Resposta (JSON):**
-  ```json
-  {
-    "files": {
-      "index.html": "...",
-      "index.css": "...",
-      "agent-config.json": "..."
+### 2. Gestão de Workspaces e Contêineres
+- `GET /api/workspaces` — Lista os workspaces do usuário logado.
+- `POST /api/workspaces` — Cria um novo workspace e inicializa a estrutura (scaffold).
+- `GET /api/workspaces/{id}/status` — Retorna o estado real (Docker inspect) do contêiner do workspace.
+- `POST /api/workspaces/{id}/start` — Detecta a stack e inicia o contêiner de preview correspondente.
+- `POST /api/workspaces/{id}/stop` — Para e remove o contêiner de preview.
+- `GET /api/workspaces/{id}/logs` — Captura os logs do contêiner Docker.
+
+### 3. Editor e Arquivos
+- `GET /api/files?workspace_id=` — Árvore de arquivos recursiva.
+- `GET /api/file?workspace_id=&path=` — Lê o conteúdo de um arquivo (com proteção contra traversal).
+- `PUT /api/file` — Salva a edição manual de um arquivo realizada no editor.
+- `POST /api/reset` — Restaura os arquivos do workspace para o template de scaffold inicial.
+
+### 4. Processamento de Comandos (IA)
+- `POST /api/command` — Recebe o prompt do usuário, valida o saldo de pontos, invoca a Go CLI (`crom-cli`) e cobra os pontos.
+  - **Payload (JSON):**
+    ```json
+    {
+      "prompt": "Adicionar seção de contato",
+      "workspace_id": "uuid-aqui",
+      "model": "google/gemini-2.5-flash"
     }
-  }
-  ```
+    ```
 
-### 2b. Endpoints de Runtime e Arquivos (implementados)
-
-Além do fluxo de comando, o backend expõe as rotas que sustentam o editor e o ciclo de vida do preview:
-
-| Método | Rota | Descrição |
-| :--- | :--- | :--- |
-| `GET` | `/api/files?workspace_id=` | Árvore de arquivos recursiva do workspace. |
-| `GET` | `/api/file?workspace_id=&path=` | Conteúdo de um arquivo (com bloqueio de path traversal). |
-| `PUT` | `/api/file` | Salva edição manual de um arquivo. |
-| `GET` | `/api/workspaces/{id}/status` | Estado real do contêiner, reconciliado com o Docker. |
-| `GET` | `/api/workspaces/{id}/logs` | Logs do contêiner de preview (`docker logs`). |
-| `POST` | `/api/workspaces/{id}/start` | Detecta a stack e sobe o contêiner correto. |
-| `POST` | `/api/workspaces/{id}/stop` | Para e remove o contêiner. |
-
-### 3. Canal de Eventos em Tempo Real (SSE)
-- **Rota:** `GET /api/events`
-- **Descrição:** Uma conexão persistente Server-Sent Events (SSE) para enviar alertas ao frontend, como a notificação de que o site foi editado e precisa ser recarregado:
-  ```text
-  data: {"event": "reload", "file": "index.html"}
-  ```
+### 5. Configurações Globais (Admin)
+- `GET /api/settings` — Obtém parâmetros como chaves OpenRouter e modelos permitidos.
+- `POST /api/settings` — Salva configurações globais.
+- `GET /api/client-points` — Obtém saldo do usuário.
+- `POST /api/client-points/add` — Credita pontos a um cliente.
 
 ---
 
@@ -123,7 +107,14 @@ O Laravel serve como o cérebro orquestrador. Ele não executa a IA diretamente;
 ```php
 use Symfony\Component\Process\Process;
 
-$process = new Process(['./cli/crom-cli', '--action=modify', '--prompt=' . $prompt]);
+$process = new Process([
+    $binaryPath,
+    '--action=modify',
+    '--prompt=' . $prompt,
+    '--workspace=' . $workspacePath,
+    '--model=' . $model,
+    '--file=' . $targetFile
+]);
 $process->run();
 
 if ($process->isSuccessful()) {

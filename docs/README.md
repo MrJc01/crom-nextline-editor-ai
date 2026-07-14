@@ -18,6 +18,12 @@ Abaixo estão os documentos detalhados que descrevem cada parte do sistema:
    - Detalha as rotas da API backend, o roteamento frontend e o diagrama de sequência do ciclo de vida das requisições.
 6. **[Checklist e Cronograma de Desenvolvimento](checklist.md)**
    - Um acompanhamento do progresso das tarefas de desenvolvimento separadas por etapas.
+7. **[Guia de Testes Automatizados](tests-guide.md)**
+   - Guia de cobertura e execução dos 27 testes automatizados (backend, frontend, CLI Go e Playwright).
+8. **[Guia de Acesso e Configuração de Redirecionamento](access-guide.md)**
+   - Explica o fluxo de autenticação Sanctum, o roteamento de previews por slug, portas ou subdomínios, e o tratamento de erros.
+9. **[Detecção Automática de Stacks](stack-detection.md)**
+   - Detalha a classificação dinâmica das stacks de projeto e a lógica de reinício inteligente de contêineres.
 
 ---
 

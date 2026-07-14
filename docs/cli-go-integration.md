@@ -12,11 +12,11 @@ O wrapper de linha de comando em Go desempenha um papel crítico como uma ponte 
 - `--action` — `modify` ou `reset`.
 - `--prompt` — a instrução do usuário.
 - `--workspace` — caminho do diretório do projeto.
-- `--file` — **arquivo alvo da edição, relativo ao workspace** (default `index.html`). Permite editar qualquer arquivo do projeto, não apenas a página inicial.
+- `--file` — **arquivo alvo da edição, relativo ao workspace** (default `index.html`). Permite editar qualquer arquivo do projeto.
+- `--model` — **modelo de IA a ser invocado** (e.g. `google/gemini-2.5-flash`).
 - `--daemon` — endereço do daemon `crom-agente` (default `localhost:17171`).
 
 A resposta JSON inclui `changed_files`, a lista de arquivos efetivamente alterados, para o frontend recarregar o preview e destacar o que mudou.
-
 
 ### Principais Benefícios:
 1. **Performance:** Execução instantânea sem a sobrecarga de inicialização de processos pesados.
@@ -36,6 +36,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Process\Exception\ProcessFailedException;
+use App\Models\Workspace;
 
 class AgentController extends Controller
 {
@@ -43,16 +44,25 @@ class AgentController extends Controller
     {
         $request->validate([
             'prompt' => 'required|string',
+            'workspace_id' => 'required|uuid',
+            'model' => 'nullable|string',
         ]);
 
         $prompt = $request->input('prompt');
+        $workspaceId = $request->input('workspace_id');
+        $model = $request->input('model', 'google/gemini-2.5-flash');
+
+        $workspace = Workspace::findOrFail($workspaceId);
+        $workspacePath = $workspace->localPath();
 
         // Cria o processo informando o binário e seus argumentos
         $process = new Process([
             base_path('../cli/crom-cli'),
             '--action=modify',
             '--prompt=' . $prompt,
-            '--workspace=' . base_path('../frontend/public/preview-site')
+            '--workspace=' . $workspacePath,
+            '--model=' . $model,
+            '--file=index.html'
         ]);
 
         $process->run();

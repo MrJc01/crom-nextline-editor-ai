@@ -39,12 +39,12 @@ O login simula dois fluxos operacionais principais dependendo do endereço que v
   - Listagem de clientes com concessão direta de novos créditos de pontos.
 
 #### 2. Perfil do Cliente
-- **E-mail de Login padrão:** `admin@crom.run` (ou qualquer e-mail no formulário de login).
+- **E-mail de Login padrão:** `client@crom.run`
 - **Saldo Inicial:** Cada cliente novo inicia com **500 pontos** de crédito por padrão.
 - **Funções:**
   - Acesso ao **Painel Editor** (`/dashboard`).
-  - Criação de novos projetos isolados (workspaces).
-  - Controle de ciclo de vida (`Play` / `Stop`) do contêiner Docker Nginx exclusivo do projeto.
+  - Criação detalhada de novos projetos isolados (workspaces) via rota `/workspace/create` (selecionando stacks como Nginx, Node, PHP, Go ou Python e gerando slugs únicos em tempo real).
+  - Controle de ciclo de vida (`Play` / `Stop`) do contêiner Docker exclusivo do projeto.
   - Chat interativo para pedir modificações de design na página. Cada alteração bem-sucedida consome os pontos do saldo atual do cliente de acordo com a taxa configurada.
   - Caso o saldo chegue a zero ou fique abaixo do custo, o sistema bloqueia novas edições exibindo um alerta amigável de saldo insuficiente.
 

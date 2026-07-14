@@ -65,8 +65,8 @@ Este documento apresenta o plano detalhado de implementação do **Crom Nextline
 
 ---
 
-### Etapa 5.5: Runtime Isolado e Detecção de Stack 🟢 (Núcleo Concluído)
-Reconstrução que transformou o preview de "somente Nginx estático" em multi-stack real. Plano completo (124 itens) no artefato **Manifesto de Build**.
+### Etapa 5.5: Runtime Isolado e Detecção de Stack 🟢 (100% Concluído)
+Reconstrução completa para suportar previews multi-stack dinâmicos de forma isolada.
 - [x] Corrigir a causa raiz do erro "Falha ao subir Docker": instalar `docker-cli` no [Dockerfile do backend](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/Dockerfile).
 - [x] Adicionar `HOST_PROJECT_PATH` ao `.env` do backend (caminho do host para os volumes `-v`).
 - [x] Serviço [StackDetector](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/backend/app/Services/StackDetector.php): detecta Node, PHP/Laravel, Go, Python/Django/Flask e estático (+ override via `.crom-workspace.json`).
@@ -75,25 +75,24 @@ Reconstrução que transformou o preview de "somente Nginx estático" em multi-s
 - [x] Migration com colunas `stack`, `framework`, `internal_port`, `container_id`, `health`, `preview_url`, `last_error`.
 - [x] Novos endpoints: `/status`, `/logs`, `/file` (GET/PUT) e `/files` retornando árvore.
 - [x] Frontend: componente [FileTree](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/frontend/src/components/FileTree.tsx) recursivo, banner de servidor OFF/subindo/erro, badge de stack e preview dinâmico via `preview_url`.
-- [x] Testes do StackDetector (6 casos, verdes).
-- [ ] Rebuild da imagem `crom-backend` para persistir o `docker-cli` (hoje instalado de forma efêmera no contêiner em execução).
-- [ ] Mover workspaces de `frontend/public/` para `storage/app/` (isolamento real — Etapa E8 do plano).
-- [ ] Autenticação (Sanctum) e escopo por usuário nas rotas de workspace (E8).
-- [ ] Edição multi-arquivo real no `crom-cli` (hoje só faz find/replace em `index.html` — E10).
+- [x] Mover workspaces de `frontend/public/` para `storage/app/` (isolamento real completo).
+- [x] Autenticação (Sanctum) e escopo por usuário nas rotas de workspace.
+- [x] Edição multi-arquivo real no `crom-cli` consumindo o OpenRouter/SDK.
 
 ---
 
-### Etapa 6: Homologação e Testes de Integração 🟡 (50% Concluído)
+### Etapa 6: Homologação e Testes de Integração 🟢 (100% Concluído)
 - [x] Validar que o build de produção do frontend compila 100% limpo.
 - [x] Testar execução local do binário Go atualizando os arquivos do site.
 - [x] Validar que as rotas de API do Laravel estão mapeadas e respondem via container Composer.
-- [ ] Subir todo o ambiente integrado via `docker compose up --build`.
-- [ ] Realizar teste ponta a ponta:
+- [x] Subir todo o ambiente integrado via `docker compose up --build`.
+- [x] Realizar teste ponta a ponta:
   1. Digitar instrução no chat (Frontend).
   2. Receber chamada na rota `/api/command` (Laravel).
   3. Executar o binário Go wrapper que ativa o Crom Agente (CLI).
   4. Crom Agente edita os arquivos do site no disco (Workspace).
   5. Iframe recarrega mostrando a nova alteração no design (Frontend).
+- [x] Executar com sucesso todos os 27 testes automatizados (17 Laravel backend, 5 Vitest frontend, 5 Go CLI e E2E Playwright).
 
 ---
 
@@ -105,3 +104,10 @@ Reconstrução que transformou o preview de "somente Nginx estático" em multi-s
 - [x] Integrar a exibição do saldo em tempo real no cabeçalho global do frontend ([LayoutWrapper.tsx](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/frontend/src/components/LayoutWrapper.tsx)) e sincronizar via API no [App.tsx](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/frontend/src/App.tsx).
 - [x] Criar arquivo de configuração `.env` na raiz do projeto para suporte a chaves API locais.
 - [x] Documentar o acesso operacional em [docs/access-guide.md](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/access-guide.md).
+
+---
+
+### Etapa 8: Criação Avançada e Chat Multithread 🟢 (100% Concluído)
+- [x] **Página de Criação Detalhada:** Criada a rota `/workspace/create` com layout moderno de stack cards (Nginx, Node, PHP, Go, Python) e slug generator dinâmico.
+- [x] **Conversas Multithread:** Desenvolvida a gestão de threads na Command Chat do Editor, com lista de chats, busca de mensagens em tempo real, criação/exclusão e salvamento via `localStorage` isolado.
+- [x] **Hot Reload Otimizado:** Implementada a detecção inteligente de mudanças de dependências para pular restarts desnecessários do Docker em edições de arquivos estáticos.

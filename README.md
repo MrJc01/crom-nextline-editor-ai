@@ -38,23 +38,40 @@ Este projeto faz parte do ecossistema de soberania digital **CROM** (incluindo `
 
 ## 🐳 Como Subir com Docker (Rápido)
 
-Para rodar o projeto inteiro (frontend e backend) localmente de forma isolada, basta executar o Docker Compose na raiz do repositório:
+Para rodar o projeto inteiro (frontend e backend) localmente de forma isolada, execute o Docker Compose na raiz do repositório:
 
 ```bash
 docker compose up --build
 ```
 
 Acesse no seu navegador:
-- **Frontend:** `http://localhost:5173`
+- **Frontend SPA:** `http://localhost:5173`
 - **Backend API:** `http://localhost:8000`
+
+### 👤 Credenciais de Teste Iniciais
+* **Cliente:** `client@crom.run` / `password`
+* **Administrador:** `admin@crom.run` / `password`
+
+---
+
+## 🧪 Como Executar a Suíte de Testes
+Temos uma suíte robusta de 27 testes automatizados validando toda a aplicação:
+- **Backend (Laravel):** `docker exec crom-backend-srv php artisan test`
+- **Frontend (Vitest):** `cd frontend && npx vitest run src/tests/frontend.test.ts`
+- **Go CLI:** `cd cli && go test -v`
+- **E2E Playwright:** `cd frontend && npx playwright test`
 
 ---
 
 ## 📚 Documentação Adicional
 
 Para mais detalhes sobre as regras de negócio e infraestrutura, veja a pasta [/docs](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs):
+- [README Geral da Pasta Docs](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/README.md)
 - [Arquitetura Geral](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/architecture.md)
 - [Multi-Workspaces e Dockerização Dinâmica](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/workspaces-docker.md)
+- [Guia de Acesso e Login](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/access-guide.md)
+- [Guia de Testes Automatizados](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/tests-guide.md)
+- [Detecção Automática de Stacks](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/stack-detection.md)
 - [Roadmap do Sistema e APIs](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/roadmap.md)
 - [Checklist de Desenvolvimento](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/checklist.md)
 - [Funcionamento do Go CLI & SDK](file:///home/j/Documentos/GitHub/crom-nextline-editor-ai/docs/cli-go-integration.md)
