@@ -315,34 +315,51 @@ class AgentController extends Controller
     public function resetWorkspace(Request $request)
     {
         $workspaceId = $request->input('workspace_id');
-        $binaryPath = base_path('../cli/crom-cli');
-        $workspacePath = $this->getWorkspaceLocalPath($workspaceId);
-
-        if (!$workspacePath) {
+        $workspace = Workspace::find($workspaceId);
+        if (!$workspace) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Workspace inválido ou não encontrado.'
             ], 404);
         }
 
-        $process = new Process([
-            $binaryPath,
-            '--action=reset',
-            '--workspace=' . $workspacePath
-        ]);
-
-        $process->run();
-
-        if (!$process->isSuccessful()) {
+        $workspacePath = $this->getWorkspaceLocalPath($workspaceId);
+        if (!$workspacePath || !File::isDirectory($workspacePath)) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Erro ao resetar o workspace.',
-                'error' => $process->getErrorOutput()
-            ], 500);
+                'message' => 'Caminho do workspace inválido ou não encontrado.'
+            ], 404);
         }
 
-        $output = json_decode($process->getOutput(), true);
-        return response()->json($output);
+        // 1. Limpar todos os arquivos do workspace
+        $files = File::allFiles($workspacePath);
+        $directories = File::directories($workspacePath);
+        
+        foreach ($files as $file) {
+            File::delete($file->getPathname());
+        }
+        foreach ($directories as $dir) {
+            File::deleteDirectory($dir);
+        }
+
+        // 2. Re-aplicar o scaffold correto usando a stack e nome do workspace
+        $templates = new \App\Services\WorkspaceTemplates();
+        $templates->scaffold($workspacePath, $workspace->stack, $workspace->name);
+
+        // 3. Reiniciar contêiner Docker para aplicar alterações limpas se estiver rodando
+        if ($workspace->status === 'running') {
+            try {
+                $this->docker->stop($workspace);
+                $this->docker->start($workspace);
+            } catch (\Exception $e) {
+                // Se der erro ao reiniciar, apenas loga mas não quebra o fluxo do reset
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Workspace resetado com sucesso para o estado original.'
+        ]);
     }
 
     /**

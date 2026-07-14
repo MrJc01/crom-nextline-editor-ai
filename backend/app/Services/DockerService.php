@@ -103,13 +103,14 @@ class DockerService
     {
         $name = $this->containerName($ws);
         $limits = ['--memory', '512m', '--cpus', '1', '--pids-limit', '256'];
+        $dns = ['--dns', '8.8.8.8', '--dns', '1.1.1.1'];
         $label = ['--label', 'crom.workspace=' . $ws->id];
 
         // Estático: Nginx serve a pasta montada como read-only.
         if ($manifest['type'] === 'static') {
             return array_merge(
                 ['docker', 'run', '-d', '--name', $name, '-p', $ws->port . ':80'],
-                $limits, $label,
+                $limits, $dns, $label,
                 ['-v', $ws->path . ':/usr/share/nginx/html:ro', 'nginx:alpine']
             );
         }
@@ -127,7 +128,7 @@ class DockerService
 
         return array_merge(
             ['docker', 'run', '-d', '--name', $name, '-p', $ws->port . ':' . $manifest['internal_port']],
-            $limits, $label, $env,
+            $limits, $dns, $label, $env,
             ['-v', $ws->path . ':/app', '-w', '/app', $manifest['image'], 'sh', '-c', $shell]
         );
     }

@@ -158,6 +158,54 @@ export default function WorkspaceEditor({
   // Multi-thread views state
   const [chatView, setChatView] = useState<'list' | 'chat'>('list')
   const [searchQuery, setSearchQuery] = useState('')
+  const [isServerReady, setIsServerReady] = useState(false)
+
+  // Polling de conexão com o servidor interno do preview
+  useEffect(() => {
+    if (!activeWorkspace || activeWorkspace.status !== 'running') {
+      setIsServerReady(false)
+      return
+    }
+
+    if (isServerReady) return
+
+    let isMounted = true
+    let retries = 0
+    const maxRetries = 20
+
+    const checkServer = async () => {
+      if (!isMounted) return
+      
+      const checkUrl = getIframeSrc()
+      try {
+        // Realiza um fetch no-cors para contornar restrições de CORS.
+        // Falha com exceção de rede se a porta estiver fechada.
+        await fetch(checkUrl, { method: 'GET', mode: 'no-cors', cache: 'no-store' })
+        
+        if (isMounted) {
+          setIsServerReady(true)
+          reloadPreview() // Força a recarga imediata do iframe com o site atualizado
+        }
+      } catch (err) {
+        if (isMounted && retries < maxRetries) {
+          retries++
+          setTimeout(checkServer, 1000)
+        } else if (isMounted) {
+          // Fallback para não travar a UI indefinidamente
+          setIsServerReady(true)
+          reloadPreview()
+        }
+      }
+    }
+
+    // Atraso inicial curto para dar tempo do contêiner subir
+    const initialDelay = setTimeout(checkServer, 500)
+
+    return () => {
+      isMounted = false
+      clearTimeout(initialDelay)
+    }
+  }, [activeWorkspace?.status, activeWorkspace?.id, reloadKey, isServerReady])
 
   // Derive active thread messages
   const activeThread = threads.find(t => t.id === activeThreadId)
@@ -827,15 +875,19 @@ export default function WorkspaceEditor({
                   />
 
                   {/* Overlay de estado quando o servidor não está no ar */}
-                  {activeWorkspace.status !== 'running' && (
+                  {(activeWorkspace.status !== 'running' || !isServerReady) && (
                     <div className="absolute inset-0 bg-slate-950/92 backdrop-blur-sm flex items-center justify-center p-6 z-20">
                       <div className="text-center max-w-sm space-y-4">
-                        {activeWorkspace.status === 'starting' ? (
+                        {(activeWorkspace.status === 'starting' || (activeWorkspace.status === 'running' && !isServerReady)) ? (
                           <>
                             <Loader2 className="w-10 h-10 text-amber-400 mx-auto animate-spin" />
-                            <h4 className="text-white font-bold text-sm">Subindo o servidor de preview</h4>
+                            <h4 className="text-white font-bold text-sm">
+                              {activeWorkspace.status === 'starting' ? 'Subindo o servidor de preview' : 'Aguardando resposta do servidor...'}
+                            </h4>
                             <p className="text-slate-400 text-xs leading-relaxed">
-                              Detectando a stack ({stackLabel(activeWorkspace)}), instalando dependências e iniciando o contêiner...
+                              {activeWorkspace.status === 'starting'
+                                ? `Detectando a stack (${stackLabel(activeWorkspace)}), instalando dependências e iniciando o contêiner...`
+                                : 'O contêiner foi iniciado. Aguardando a inicialização da aplicação interna na porta...'}
                             </p>
                           </>
                         ) : activeWorkspace.status === 'error' ? (

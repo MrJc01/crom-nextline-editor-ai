@@ -547,6 +547,7 @@ export default function App() {
       if (data.status === 'success') {
         addLog('laravel', 'success', 'Workspace redefinido para o código padrão.')
         await syncWorkspaceFiles(activeWorkspace.id)
+        reloadPreview()
       }
     } catch (err) {
       addLog('laravel', 'warning', 'Erro ao redefinir workspace.')

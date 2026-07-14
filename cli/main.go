@@ -238,6 +238,8 @@ func runLLMModification(workspacePath, apiKey, model, prompt string, steps []str
 		"- If the workspace HAS a package.json file (Node.js/Vite/React project), you must follow its package manager and build configuration, writing local components and styles accordingly.\n\n" +
 		"IMPORTANT GUIDELINES FOR TEMPLATES & HTML:\n" +
 		"- Never hardcode large HTML page strings directly inside code files like `.go` or `.py` using string/byte print statements. Instead, write/update a template file in a templates folder (such as templates/index.html) and load it from the code file. This keeps the code clean and prevents compile errors.\n\n" +
+		"IMPORTANT GUIDELINES FOR RICH & COMPLETE DESIGNS:\n" +
+		"- When the user asks to 'create a website' or build a page for a specific topic, you MUST NOT make minor text replacements or keep the basic starter layout. Instead, completely rebuild templates/index.html (and other files if needed) into a fully featured, premium-designed web page. It must contain rich, realistic copy (no lorem ipsum), a beautiful color palette, and multiple sections (e.g. Navigation, hero with gradients, features showcase with cards/icons, detailed info section, interactive elements, and a professional footer).\n\n" +
 		"You must output a JSON object with a single key \"operations\" which is an array of operations.\n" +
 		"An operation must have:\n" +
 		"- \"action\": \"write\" or \"delete\"\n" +
