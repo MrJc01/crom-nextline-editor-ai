@@ -82,7 +82,10 @@ class Workspace extends Model
             $portSuffix = $port ? ':' . $port : '';
             return $scheme . '://' . ($this->slug ?? \Illuminate\Support\Str::slug($this->name)) . '.' . $host . $portSuffix;
         } elseif ($type === 'path') {
-            return rtrim($baseUrl, '/') . '/preview/' . ($this->slug ?? \Illuminate\Support\Str::slug($this->name));
+            if ($this->stack === 'static') {
+                return rtrim($baseUrl, '/') . '/preview/' . ($this->slug ?? \Illuminate\Support\Str::slug($this->name));
+            }
+            return 'http://localhost:' . $this->port;
         }
 
         return 'http://localhost:' . $this->port;

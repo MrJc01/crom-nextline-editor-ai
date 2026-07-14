@@ -236,6 +236,35 @@ class WorkspaceController extends Controller
         // Se a rota receber slug como parâmetro da rota de subdomínio, ou se vier do path
         $workspace = Workspace::where('slug', $slug)->firstOrFail();
 
+        // Se o stack for dinâmico (não-estático) e o container estiver rodando, faz proxy para a porta real
+        if ($workspace->stack !== 'static' && $workspace->status === 'running') {
+            $port = $workspace->port;
+            $url = 'http://127.0.0.1:' . $port . '/' . ltrim($path ?? '', '/');
+            if ($request->getQueryString()) {
+                $url .= '?' . $request->getQueryString();
+            }
+
+            try {
+                $client = new \GuzzleHttp\Client([
+                    'timeout' => 5,
+                    'http_errors' => false
+                ]);
+                
+                $response = $client->request($request->method(), $url, [
+                    'headers' => [
+                        'Accept' => $request->header('Accept'),
+                        'User-Agent' => $request->header('User-Agent'),
+                    ],
+                    'body' => $request->getContent()
+                ]);
+
+                return response($response->getBody()->getContents(), $response->getStatusCode())
+                    ->header('Content-Type', $response->getHeaderLine('Content-Type'));
+            } catch (\Exception $e) {
+                // Fallback para ler arquivos locais em caso de timeout
+            }
+        }
+
         $root = realpath($workspace->localPath());
         if (!$root) {
             abort(404);

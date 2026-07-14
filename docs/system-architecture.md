@@ -127,9 +127,11 @@ Ao criar um workspace, uma coluna `slug` única é automaticamente gerada com ba
 1. **Modo Path (`PREVIEW_URL_TYPE=path`):**
    * O preview será servido na rota pública: `http://localhost:8000/preview/{slug}/{path?}`.
    * O iframe do editor apontará para esta rota unificada que lê os arquivos da pasta do workspace diretamente.
+   * **Fallback para stacks dinâmicos:** Para projetos não-estáticos (Node, PHP puro, Django, etc.), a URL reverte automaticamente para a porta dedicada `http://localhost:{port}`. Isso evita que arquivos de assets relativos fujam da raiz da URL e quebrem na renderização.
 2. **Modo Subdomínio (`PREVIEW_URL_TYPE=subdomain`):**
    * O preview será servido na rota de subdomínio dinâmico: `http://{slug}.localhost:8000/{path?}`.
-   * O roteador do Laravel `routes/web.php` intercepta a requisição usando `Route::domain()` e serve os arquivos do projeto correspondente.
+   * O roteador do Laravel `routes/web.php` intercepta a requisição usando `Route::domain()` e serve os arquivos.
+   * **Reverse Proxy:** Para stacks dinâmicas, o Laravel atua como um proxy reverso transparente encaminhando as chamadas HTTP diretamente para a porta interna do contêiner Docker ativo, unificando a experiência sob o subdomínio.
 3. **Modo Port (`PREVIEW_URL_TYPE=port`):**
    * Comportamento legado que utiliza portas dedicadas por projeto (ex: `http://localhost:9003`).
 
